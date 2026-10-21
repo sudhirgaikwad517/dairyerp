@@ -27,6 +27,18 @@ docker compose restart       # restart
 sh deploy/backup.sh          # backup now
 ```
 
+## Admin login
+
+No username or password is written in the code. Logins live only in the database.
+
+- **Forgotten admin password, or a new admin:** on the VPS run
+  `docker exec -it dairyerp python backend/create_admin.py`.
+  It asks for the username and the new password (the password is not shown while typing).
+- **Brand-new empty database:** set `DAIRY_ADMIN_USERNAME` and `DAIRY_ADMIN_PASSWORD` in `.env` for the first start,
+  or run the command above. Remove them from `.env` afterwards.
+- Delivery boy and customer passwords are set by the admin in the admin panel.
+- Sample data is only for development: `DAIRY_SAMPLE_DATA=1` on an empty database.
+
 ## Releasing new code
 
 1. On the PC: commit and `git push`.
@@ -59,4 +71,4 @@ docker compose start
 - **Admin, Email (SMTP):** fill the Hostinger mailbox details. Set the portal address to `https://app.akashdairyfarm.in` and send a test email.
 - **Admin, B2B Customers:** add customer email addresses.
 - **Flutter app:** build with `--dart-define=API_BASE_URL=https://app.akashdairyfarm.in/api/v1`.
-- **Default passwords:** change the admin and staff passwords.
+- **Passwords:** each delivery boy and customer gets their own password from the admin panel.

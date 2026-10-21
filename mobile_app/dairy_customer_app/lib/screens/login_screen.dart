@@ -173,7 +173,7 @@ class _LoginScreenState extends State<LoginScreen> {
               textInputAction: TextInputAction.next,
               decoration: _input(
                 label: _staff ? 'Username' : 'Mobile number',
-                hint: _staff ? 'e.g. admin' : '10-digit mobile number',
+                hint: _staff ? 'Your username' : '10-digit mobile number',
                 icon: _staff ? Icons.badge_outlined : Icons.phone_android,
               ),
               validator: (v) {

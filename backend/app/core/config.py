@@ -7,17 +7,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 class Settings(BaseSettings):
     PROJECT_NAME: str = "DairyERP - Smart Dairy Distribution & Processing Enterprise ERP"
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "dairy_erp_super_secret_jwt_key_2026")
+    # Never written in the code: from the environment, else a random key kept in .secret_key
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 days
     
-    # Database URL: Primary is PostgreSQL, fallback to SQLite for immediate local plug-and-play
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", 
-        "postgresql://postgres:postgres@localhost:5432/dairy_erp"
-    )
     # Absolute path: the same database is used whatever folder the server is started from
     SQLITE_FALLBACK_URL: str = "sqlite:///" + (PROJECT_ROOT / "dairy_erp.db").as_posix()
+    # DATABASE_URL from the environment (SQLite or PostgreSQL); the local SQLite file otherwise
+    DATABASE_URL: str = os.getenv("DATABASE_URL") or SQLITE_FALLBACK_URL
     
     # Pricing & Transport Defaults
     DEFAULT_DIESEL_PRICE: float = 95.0

@@ -2733,7 +2733,7 @@ function setupModalForms() {
       });
       bootstrap.Modal.getInstance(document.getElementById('modalCustomerLogin')).hide();
       alert(password
-        ? `${res.message}\n\nLogin ID: ${res.login_id}\nPassword: ${password}\n\nShare these with the customer.`
+        ? `${res.message}\n\nLogin ID: ${res.login_id}\nGive the customer the password you just set.`
         : res.message);
       await loadCustomerTable();
     } catch (err) {
@@ -2837,7 +2837,7 @@ function setupModalForms() {
     try {
       if (id) await DairyAPI.updateDriver(id, payload);
       else await DairyAPI.createDriver(payload);
-      if (password) alert(`Login ready for ${payload.full_name}.\nLogin ID: ${payload.phone}\nPassword: ${password}`);
+      if (password) alert(`Login ready for ${payload.full_name}.\nLogin ID: ${payload.phone}\nGive the delivery boy the password you just set.`);
       resetDriverForm();
       await renderDrivers();
       await loadCustomerTable();

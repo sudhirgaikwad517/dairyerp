@@ -16,15 +16,13 @@ from backend.app.models.entities import Customer, User
 
 ADMIN_ROLES = {"super_admin", "admin"}
 MIN_PASSWORD_LENGTH = 6
-_DEFAULT_SECRET = "dairy_erp_super_secret_jwt_key_2026"
 
 
 def _load_secret_key() -> str:
     """
-    Use SECRET_KEY from the environment if set. Otherwise keep a random key in a local file,
-    so tokens cannot be forged with the default key that is visible in the source code.
+    Use SECRET_KEY from the environment if set. Otherwise keep a random key in a local file.
     """
-    if os.getenv("SECRET_KEY") and settings.SECRET_KEY != _DEFAULT_SECRET:
+    if settings.SECRET_KEY:
         return settings.SECRET_KEY
     key_file = Path(__file__).resolve().parents[3] / ".secret_key"
     if key_file.exists():

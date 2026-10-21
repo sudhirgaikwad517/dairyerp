@@ -1,5 +1,7 @@
 import logging
+import os
 import random
+import secrets
 from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from backend.app.models.entities import (
@@ -71,9 +73,9 @@ SEED_PLANT_DATA = False
 
 
 def seed_database_if_empty(db: Session):
-    # Only a brand-new database gets the sample data. A live database whose customers were all
-    # removed still has the admin user, so it is never filled with sample data again.
-    if db.query(User).first() or db.query(Customer).first():
+    # Sample data only on request (DAIRY_SAMPLE_DATA=1, for development) and only into a
+    # brand-new database. A live database is never filled with sample data.
+    if os.getenv("DAIRY_SAMPLE_DATA") != "1" or db.query(User).first() or db.query(Customer).first():
         logger.info("Database already seeded. Skipping initial seeding.")
         return
 
@@ -88,11 +90,12 @@ def seed_database_if_empty(db: Session):
         state="Maharashtra", contact_phone="+91 98220 11223", gstin="27AABCA1234F1Z5"
     ))
     db.add_all([
-        User(id=1, branch_id=1, username="admin", email="admin@dairyerp.com", password_hash="Dairy@123",
+        # Random passwords: real ones are set with backend/create_admin.py and the admin panel
+        User(id=1, branch_id=1, username="admin", email="admin@dairyerp.com", password_hash=secrets.token_urlsafe(16),
              full_name="Admin", phone="+91 98900 11111", role="super_admin"),
-        User(id=3, branch_id=1, username="driver_rahul", email="rahul@dairyerp.com", password_hash="Driver@123",
+        User(id=3, branch_id=1, username="driver_rahul", email="rahul@dairyerp.com", password_hash=secrets.token_urlsafe(16),
              full_name="Rahul Patil", phone="+91 98900 33333", role="driver"),
-        User(id=4, branch_id=1, username="driver_sachin", email="sachin@dairyerp.com", password_hash="Driver@123",
+        User(id=4, branch_id=1, username="driver_sachin", email="sachin@dairyerp.com", password_hash=secrets.token_urlsafe(16),
              full_name="Sachin More", phone="+91 98900 44444", role="driver"),
     ])
     db.flush()

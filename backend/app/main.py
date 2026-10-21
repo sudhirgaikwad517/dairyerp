@@ -45,9 +45,11 @@ from backend.app.core.security import require_admin, upgrade_plaintext_passwords
 Base.metadata.create_all(bind=engine)
 add_missing_columns()
 
-# Auto-seed initial demo dataset
+# Sample data (development only, DAIRY_SAMPLE_DATA=1) and the first admin login (from the environment)
 with SessionLocal() as db:
     seed_database_if_empty(db)
+    from backend.app.services.admin_account import ensure_first_admin
+    ensure_first_admin(db)
     upgrade_plaintext_passwords(db)
     # Older orders, claims and bills get their per-product details (safe to run every start)
     from backend.app.services.order_lines import backfill
