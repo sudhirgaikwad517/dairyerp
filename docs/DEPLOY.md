@@ -1,6 +1,6 @@
 # Deploying DairyERP on the VPS (Docker + Nginx)
 
-Live at **https://akashdairyfarm.in** on the Hostinger VPS (Ubuntu).
+Live at **https://app.akashdairyfarm.in** on the Hostinger VPS (Ubuntu).
 
 ## Layout on the server
 
@@ -56,7 +56,7 @@ docker compose start
 ## After it is live
 
 - **Admin, Billing → Dairy Settings:** fill contact email and address.
-- **Admin, Email (SMTP):** fill the Hostinger mailbox details. Set the portal address to `https://akashdairyfarm.in` and send a test email.
+- **Admin, Email (SMTP):** fill the Hostinger mailbox details. Set the portal address to `https://app.akashdairyfarm.in` and send a test email.
 - **Admin, B2B Customers:** add customer email addresses.
-- **Flutter app:** build with `--dart-define=API_BASE_URL=https://akashdairyfarm.in/api/v1`.
+- **Flutter app:** build with `--dart-define=API_BASE_URL=https://app.akashdairyfarm.in/api/v1`.
 - **Default passwords:** change the admin and staff passwords.
