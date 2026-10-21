@@ -10,7 +10,7 @@ uploads/
 data/
 
 # Big or personal files
-frontend/download/*.apk
+*.apk
 /image.png
 /WhatsApp Image*
 
