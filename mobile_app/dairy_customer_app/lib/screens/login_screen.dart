@@ -130,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       child: const Column(
         children: [
-          DairyLogo(size: 84),
+          DairyLogo(size: 112),
           SizedBox(height: 16),
           Text('Akash Dairy Farm',
               style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.3)),

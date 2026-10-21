@@ -1,15 +1,17 @@
 """Renders milk bills as PDF in the dairy's bill format (one page per bill)."""
 import calendar
 import io
+import os
 from datetime import date
 from typing import Dict, List
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
-from reportlab.platypus import PageBreak, SimpleDocTemplate, Table, TableStyle
+from reportlab.platypus import Image, PageBreak, SimpleDocTemplate, Spacer, Table, TableStyle
 
 BLUE = colors.HexColor("#BDD7EE")
+LOGO = os.path.join(os.path.dirname(__file__), "bill_logo.png")
 GRID = colors.black
 
 # DATE | QTY/LTR | RATE | DATE | QTY/LTR | RATE
@@ -283,6 +285,8 @@ def render_bills_pdf(bills: List[Dict], profile) -> bytes:
     for i, bill in enumerate(bills):
         if i:
             story.append(PageBreak())
+        if os.path.exists(LOGO):
+            story += [Image(LOGO, width=22 * mm, height=22 * mm), Spacer(1, 2 * mm)]
         story.append(_bill_table(bill, profile))
     doc.build(story)
     return buffer.getvalue()

@@ -36,7 +36,8 @@ def _page(title: str, values: dict, updated: datetime, body: str) -> HTMLRespons
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{_e(title)} | {_e(name)}</title>
-<link rel="icon" type="image/svg+xml" href="/frontend/assets/logo.svg">
+<link rel="icon" type="image/png" href="/frontend/assets/favicon.png">
+  <link rel="apple-touch-icon" href="/frontend/assets/apple-touch-icon.png">
 <style>
   :root {{ --ink: #0f172a; --muted: #64748b; --line: #e2e8f0; --brand: #0b2545; --link: #13406b; --bg: #f5f8fa; }}
   * {{ box-sizing: border-box; }}
@@ -44,7 +45,7 @@ def _page(title: str, values: dict, updated: datetime, body: str) -> HTMLRespons
   header {{ background: linear-gradient(135deg, #0b2545, #13406b 55%, #0e7fb5); color: #fff; padding: 22px 16px 26px; }}
   .wrap {{ max-width: 820px; margin: 0 auto; }}
   .brand {{ display: flex; align-items: center; gap: 12px; }}
-  .brand img {{ width: 44px; height: 44px; border-radius: 12px; background: #fff; }}
+  .brand img {{ width: 52px; height: 52px; border-radius: 50%; background: #fff; }}
   .brand b {{ font-size: 1.1rem; }}
   h1 {{ margin: 16px 0 2px; font-size: 1.6rem; }}
   header small {{ color: rgba(255,255,255,.8); }}
@@ -69,7 +70,7 @@ def _page(title: str, values: dict, updated: datetime, body: str) -> HTMLRespons
 </head>
 <body>
 <header><div class="wrap">
-  <div class="brand"><img src="/frontend/assets/logo.svg" alt=""><b>{_e(name)}</b></div>
+  <div class="brand"><img src="/frontend/assets/logo-192.png" alt=""><b>{_e(name)}</b></div>
   <h1>{_e(title)}</h1>
   <small>Last updated: {updated.day} {updated:%B %Y}</small>
 </div></header>

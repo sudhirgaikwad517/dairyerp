@@ -29,13 +29,16 @@ void main() {
   testWidgets('Login validates input before calling the server', (tester) async {
     await tester.pumpWidget(app());
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Log In'));
+    final logIn = find.widgetWithText(ElevatedButton, 'Log In');
+    await tester.ensureVisible(logIn);
+    await tester.tap(logIn);
     await tester.pump();
     expect(find.text('Enter your 10-digit mobile number'), findsOneWidget);
     expect(find.text('Enter your password'), findsOneWidget);
 
     await tester.enterText(find.widgetWithText(TextFormField, 'Mobile number'), '12345');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Log In'));
+    await tester.ensureVisible(logIn);
+    await tester.tap(logIn);
     await tester.pump();
     expect(find.text('Enter your 10-digit mobile number'), findsOneWidget);
   });

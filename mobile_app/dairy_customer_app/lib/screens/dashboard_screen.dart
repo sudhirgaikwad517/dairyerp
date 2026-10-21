@@ -186,7 +186,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
         children: [
           Row(
             children: [
-              const DairyLogo(size: 40),
+              const DairyLogo(size: 44),
               const SizedBox(width: 10),
               const Expanded(
                 child: Column(
