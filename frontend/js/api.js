@@ -363,8 +363,12 @@ const DairyAPI = {
     return apiRequest('/transport/trips');
   },
 
-  getRoutes() {
-    return apiRequest('/transport/routes');
+  getRoutes(includeInactive = false) {
+    return apiRequest(`/transport/routes${includeInactive ? '?include_inactive=true' : ''}`);
+  },
+
+  saveRoute(id, data) {
+    return id ? postJSON(`/transport/routes/${id}`, data, 'PUT') : postJSON('/transport/routes', data);
   },
 
   getTransportDayCosts(params) {

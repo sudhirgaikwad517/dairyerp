@@ -334,8 +334,9 @@ window.openCustomerModal = async function(customerId = null) {
   } catch (err) {
     console.error('Failed to load routes:', err);
   }
-  document.getElementById('cust-route').innerHTML = '<option value="">No route</option>' +
-    routesCache.map(r => `<option value="${r.id}">${esc(r.route_name)}</option>`).join('');
+  document.getElementById('cust-route').innerHTML =
+    (routesCache.length ? '<option value="">No route</option>' : '<option value="">No routes yet: add one in Customers &rarr; Routes</option>') +
+    routesCache.map(r => `<option value="${r.id}">${esc(r.route_name)}${r.driver_name ? ' &bull; ' + esc(r.driver_name) : ''}</option>`).join('');
   document.getElementById('cust-driver').innerHTML = '<option value="">Not assigned</option>' +
     driversCache.filter(d => d.is_active || (c && c.assigned_driver_id === d.id))
       .map(d => `<option value="${d.id}">${esc(d.full_name)} (${esc(d.phone)})</option>`).join('');
@@ -464,6 +465,94 @@ window.toggleDriver = async function(driverId) {
     await loadCustomerTable();
   } catch (err) {
     alert('Could not update delivery boy: ' + err.message);
+  }
+};
+
+// Delivery routes
+let routesAll = [];
+window.openRoutesModal = async function() {
+  try {
+    driversCache = await DairyAPI.getDrivers();
+  } catch (err) {
+    console.error('Failed to load delivery boys:', err);
+  }
+  resetRouteForm();
+  await renderRoutes();
+  new bootstrap.Modal(document.getElementById('modalRoutes')).show();
+};
+
+function fillRouteDriverSelect(selectedId) {
+  const list = driversCache.filter(d => d.is_active || d.id === selectedId);
+  document.getElementById('route-driver').innerHTML = list.length
+    ? '<option value="">Choose...</option>' + list.map(d => `<option value="${d.id}">${esc(d.full_name)} (${esc(d.phone)})</option>`).join('')
+    : '<option value="">Add a delivery boy first</option>';
+  document.getElementById('route-driver').value = selectedId ?? '';
+}
+
+async function renderRoutes() {
+  const tbody = document.getElementById('routes-tbody');
+  try {
+    routesAll = await DairyAPI.getRoutes(true);
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${esc(err.message)}</td></tr>`;
+    return;
+  }
+  routesCache = routesAll.filter(r => r.is_active);
+  tbody.innerHTML = routesAll.length ? routesAll.map(r => `
+    <tr class="${r.is_active ? '' : 'opacity-50'}">
+      <td class="fw-bold">${esc(r.route_name)} <small class="text-muted d-block">${esc(r.route_code)}</small></td>
+      <td>${r.driver_name ? esc(r.driver_name) : '<span class="text-danger">Not set</span>'}</td>
+      <td>${r.vehicle_number ? esc(r.vehicle_number) : '<span class="text-danger">Not set</span>'}
+        ${r.vehicle_type ? `<small class="text-muted d-block">${esc(r.vehicle_type)}</small>` : ''}</td>
+      <td><span class="badge bg-info text-dark">${r.customers_count}</span></td>
+      <td><span class="badge ${!r.is_active ? 'bg-secondary' : r.ready ? 'bg-success' : 'bg-warning text-dark'}">
+        ${!r.is_active ? 'OFF' : r.ready ? 'READY' : 'NEEDS ACTIVE DELIVERY BOY'}</span></td>
+      <td class="text-nowrap">
+        <button class="btn btn-sm btn-outline-primary" onclick="editRoute(${r.id})" title="Edit"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-${r.is_active ? 'secondary' : 'success'}" onclick="toggleRoute(${r.id})">
+          ${r.is_active ? 'Switch off' : 'Switch on'}
+        </button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="6" class="text-center text-muted py-3">No routes yet. Add the first route above.</td></tr>';
+}
+
+window.resetRouteForm = function() {
+  ['route-id', 'route-name', 'route-vehicle', 'route-vehicle-type'].forEach(id => { document.getElementById(id).value = ''; });
+  fillRouteDriverSelect(null);
+  document.getElementById('route-save-btn').innerText = 'Add';
+  document.getElementById('route-cancel-btn').classList.add('d-none');
+};
+
+window.editRoute = function(routeId) {
+  const r = routesAll.find(x => x.id === routeId);
+  if (!r) return;
+  document.getElementById('route-id').value = r.id;
+  document.getElementById('route-name').value = r.route_name;
+  fillRouteDriverSelect(r.driver_id);
+  document.getElementById('route-vehicle').value = r.vehicle_number || '';
+  document.getElementById('route-vehicle-type').value = r.vehicle_type || '';
+  document.getElementById('route-save-btn').innerText = 'Save';
+  document.getElementById('route-cancel-btn').classList.remove('d-none');
+  document.getElementById('route-name').focus();
+};
+
+window.toggleRoute = async function(routeId) {
+  const r = routesAll.find(x => x.id === routeId);
+  if (!r) return;
+  if (!r.is_active && (!r.driver_id || !r.vehicle_number)) {
+    editRoute(routeId);
+    alert('Set the delivery boy and vehicle, then save.');
+    return;
+  }
+  try {
+    await DairyAPI.saveRoute(r.id, {
+      route_name: r.route_name, driver_id: r.driver_id, vehicle_number: r.vehicle_number,
+      vehicle_type: r.vehicle_type || null, is_active: !r.is_active
+    });
+    await renderRoutes();
+    await loadCustomerTable();
+  } catch (err) {
+    alert('Could not update route: ' + err.message);
   }
 };
 
@@ -2692,6 +2781,41 @@ function setupModalForms() {
 
   ['cust-search', 'cust-filter-driver', 'cust-show-inactive'].forEach(fid => {
     document.getElementById(fid).addEventListener(fid === 'cust-search' ? 'input' : 'change', renderCustomerTable);
+  });
+
+  // Route add / edit
+  document.getElementById('form-route').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('route-id').value;
+    const existing = id ? routesAll.find(r => String(r.id) === id) : null;
+    const payload = {
+      route_name: document.getElementById('route-name').value.trim(),
+      driver_id: parseInt(document.getElementById('route-driver').value) || 0,
+      vehicle_number: document.getElementById('route-vehicle').value.trim(),
+      vehicle_type: document.getElementById('route-vehicle-type').value.trim() || null,
+      is_active: existing ? existing.is_active : true
+    };
+    if (!payload.driver_id) {
+      alert('Choose the delivery boy for this route.');
+      return;
+    }
+    try {
+      await DairyAPI.saveRoute(id || null, payload);
+      resetRouteForm();
+      await renderRoutes();
+      await loadCustomerTable();
+    } catch (err) {
+      alert('Could not save route: ' + err.message);
+    }
+  });
+
+  // A customer put on a route gets that route's delivery boy unless one is already chosen
+  document.getElementById('cust-route').addEventListener('change', () => {
+    const r = routesCache.find(x => String(x.id) === document.getElementById('cust-route').value);
+    const driverSelect = document.getElementById('cust-driver');
+    if (r && r.driver_id && !driverSelect.value && [...driverSelect.options].some(o => o.value === String(r.driver_id))) {
+      driverSelect.value = String(r.driver_id);
+    }
   });
 
   // Delivery boy add / edit

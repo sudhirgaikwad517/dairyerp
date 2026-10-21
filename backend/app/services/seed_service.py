@@ -71,7 +71,9 @@ SEED_PLANT_DATA = False
 
 
 def seed_database_if_empty(db: Session):
-    if db.query(Customer).first():
+    # Only a brand-new database gets the sample data. A live database whose customers were all
+    # removed still has the admin user, so it is never filled with sample data again.
+    if db.query(User).first() or db.query(Customer).first():
         logger.info("Database already seeded. Skipping initial seeding.")
         return
 
