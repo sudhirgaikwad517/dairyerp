@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Akash Dairy Farm">
+  <defs>
+    <linearGradient id="adf-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#0b2545"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#adf-bg)"/>
+  <!-- Milk bottle: cap, glass outline, milk inside -->
+  <rect x="25" y="9" width="14" height="5" rx="1.6" fill="#ffffff"/>
+  <path d="M26.5 15.5 H37.5 V20.5 L43.5 27.5 V48.5 Q43.5 54.5 37.5 54.5 H26.5 Q20.5 54.5 20.5 48.5 V27.5 L26.5 20.5 Z"
+        fill="#ffffff" fill-opacity="0.18" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M20.5 34 Q26.5 30.5 32 34 T43.5 34 V48.5 Q43.5 54.5 37.5 54.5 H26.5 Q20.5 54.5 20.5 48.5 Z" fill="#ffffff"/>
+  <!-- Small leaf for "farm fresh" -->
+  <path d="M32 47.5 C28.5 46 28 42 32 39.5 C36 42 35.5 46 32 47.5 Z" fill="#12a15b"/>
+</svg>

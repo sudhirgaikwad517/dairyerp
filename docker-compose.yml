@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    image: dairyerp:latest
+    container_name: dairyerp
+    restart: unless-stopped
+    env_file: .env            # SECRET_KEY (not in git)
+    environment:
+      DATABASE_URL: sqlite:////data/dairy_erp.db
+      DAIRY_UPLOAD_DIR: /data/uploads
+      DAIRY_HOST: 0.0.0.0
+      DAIRY_PORT: "8000"
+      # Only Nginx on this server can reach the port (bound to 127.0.0.1 below)
+      DAIRY_TRUSTED_PROXIES: "*"
+      APP_TIMEZONE: Asia/Kolkata
+    volumes:
+      - ./data:/data
+      - ./data/download:/app/frontend/download   # app APK for the download link
+    ports:
+      - "127.0.0.1:8000:8000"   # one server process only: dispatcher and email sender run inside it
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

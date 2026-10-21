@@ -1,0 +1,6 @@
+*
+!backend/
+!frontend/
+frontend/download/*.apk
+**/__pycache__
+**/*.pyc

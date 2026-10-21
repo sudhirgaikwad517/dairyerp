@@ -1,0 +1,32 @@
+# Data and secrets: never in git
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.secret_key
+.env
+backups/
+uploads/
+data/
+
+# Big or personal files
+frontend/download/*.apk
+/image.png
+/WhatsApp Image*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editors
+.vscode/
+.idea/
+
+# Flutter app build output (the app has its own .gitignore too)
+mobile_app/**/build/
+mobile_app/**/.dart_tool/
+mobile_app/**/key.properties
+mobile_app/**/*.jks
+mobile_app/**/*.keystore

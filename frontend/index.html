@@ -1,0 +1,1894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Akash Dairy Farm | Dairy ERP</title>
+  <link rel="icon" type="image/svg+xml" href="/frontend/assets/logo.svg">
+  
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <!-- Custom Design System -->
+  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261018b">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div id="app-layout">
+  <!-- Sidebar Navigation -->
+  <aside id="sidebar">
+    <div class="brand-wrapper">
+      <img src="/frontend/assets/logo.svg" class="brand-logo" alt="Akash Dairy Farm logo">
+      <div>
+        <div class="brand-title">Akash Dairy Farm</div>
+        <div class="brand-subtitle">Dairy ERP Suite</div>
+      </div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-section-title">Operations</div>
+      <a href="#" class="nav-item-btn active" data-target="view-dashboard">
+        <i class="bi bi-speedometer2"></i>
+        <span>Live Overview</span>
+      </a>
+      <a href="#" class="nav-item-btn" data-target="view-customers">
+        <i class="bi bi-buildings"></i>
+        <span>B2B Customers</span>
+        <span class="nav-badge" id="nav-customer-count"></span>
+      </a>
+      <a href="#" class="nav-item-btn" data-target="view-products">
+        <i class="bi bi-box-seam"></i>
+        <span>Products</span>
+        <span class="nav-badge" id="nav-product-count"></span>
+      </a>
+      <a href="#" class="nav-item-btn" data-target="view-pricing">
+        <i class="bi bi-tag"></i>
+        <span>Custom Pricing</span>
+      </a>
+      <a href="#" class="nav-item-btn" data-target="view-orders">
+        <i class="bi bi-box-seam"></i>
+        <span>Orders & Dispatch</span>
+      </a>
+      <a href="#" class="nav-item-btn" data-target="view-claims">
+        <i class="bi bi-exclamation-octagon"></i>
+        <span>Customer Claims</span>
+        <span class="nav-badge bg-danger text-white d-none" id="nav-claims-count"></span>
+      </a>
+
+      <div class="nav-section-title">Fleet & Transport</div>
+      <a href="#" class="nav-item-btn" data-target="view-transport">
+        <i class="bi bi-truck"></i>
+        <span>Transport Cost / L</span>
+        <span class="nav-badge">₹/L</span>
+      </a>
+      <a href="/driver" target="_blank" class="nav-item-btn text-warning" title="Opens the delivery boy login">
+        <i class="bi bi-phone"></i>
+        <span>Driver Web App <i class="bi bi-box-arrow-up-right ms-1 small"></i></span>
+      </a>
+      <a href="/customer" target="_blank" class="nav-item-btn text-cyan" title="Opens the customer login">
+        <i class="bi bi-person-badge"></i>
+        <span>Customer Portal <i class="bi bi-box-arrow-up-right ms-1 small"></i></span>
+      </a>
+
+      <div class="nav-section-title">Plant & Processing</div>
+      <a href="#" class="nav-item-btn" data-target="view-procurement">
+        <i class="bi bi-droplet-half"></i>
+        <span>Procurement (Fat/SNF)</span>
+      </a>
+      <a href="#" class="nav-item-btn" data-target="view-production">
+        <i class="bi bi-gear-wide-connected"></i>
+        <span>Production & Yield</span>
+      </a>
+
+      <div class="nav-section-title">Finance & Intelligence</div>
+      <a href="#" class="nav-item-btn" data-target="view-invoices">
+        <i class="bi bi-receipt"></i>
+        <span>Billing</span>
+        <span class="nav-badge">PDF</span>
+      </a>
+      <a href="#" class="nav-item-btn" data-target="view-profitability">
+        <i class="bi bi-graph-up-arrow"></i>
+        <span>Customer Profitability</span>
+      </a>
+      <a href="#" class="nav-item-btn" data-target="view-sales-report">
+        <i class="bi bi-table"></i>
+        <span>Sales Reports</span>
+        <span class="nav-badge">D/W/M</span>
+      </a>
+
+      <div class="nav-section-title">App &amp; Legal</div>
+      <a href="#" class="nav-item-btn" data-target="view-legal">
+        <i class="bi bi-shield-check"></i>
+        <span>Legal Pages</span>
+      </a>
+      <a href="#" class="nav-item-btn" data-target="view-email">
+        <i class="bi bi-envelope-at"></i>
+        <span>Email (SMTP)</span>
+        <span class="nav-badge" id="nav-email-state"></span>
+      </a>
+    </div>
+
+    <div class="p-3 border-top border-glass text-center">
+      <small class="text-muted d-block">Logged in as</small>
+      <div class="fw-bold text-white small" id="sidebar-user-name">Admin</div>
+      <a href="#" class="small text-danger text-decoration-none" onclick="Auth.logout(); return false;">Logout</a>
+      <div class="mt-2"><a class="dev-credit" href="/privacy" target="_blank">Privacy Policy</a> · <a class="dev-credit" href="/terms" target="_blank">Terms</a><br><a class="dev-credit" href="https://www.prowexa.com" target="_blank" rel="noopener">Design Developed By <b>Prowexa Technologies Pvt. Ltd</b></a></div>
+    </div>
+  </aside>
+  <div class="sidebar-backdrop" onclick="toggleSidebar(false)"></div>
+
+  <!-- Main Content View -->
+  <main id="main-content">
+    <!-- Top Header -->
+    <header class="top-header">
+      <div class="d-flex align-items-center gap-3">
+        <button class="sidebar-toggle" type="button" onclick="toggleSidebar()" aria-label="Open menu">
+          <i class="bi bi-list"></i>
+        </button>
+        <div class="branch-select-badge">
+          <span class="status-dot-pulse"></span>
+          <span>Akash Dairy Farm</span>
+        </div>
+        <div class="live-clock-badge" id="live-clock">Oct 15, 2026 • Live</div>
+      </div>
+
+      <div class="header-actions">
+        <div class="dropdown">
+          <button class="btn btn-sm btn-dairy-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-person-circle"></i><span class="header-btn-label ms-1" id="header-user-name">Admin</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="#" onclick="openChangePassword(); return false;"><i class="bi bi-key me-2"></i>Change Password</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="#" onclick="Auth.logout(); return false;"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    <!-- VIEWS CONTAINER -->
+    <div class="container-fluid p-4">
+
+      <!-- ================= 1. VIEW: DASHBOARD OVERVIEW ================= -->
+      <section id="view-dashboard" class="module-view active-view">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Live Dairy Operations Command Center</h2>
+            <p class="text-muted small mb-0">End-to-End milk collection, production batch yield, cold-chain route delivery, and litre-wise transport costing.</p>
+          </div>
+          <div class="d-flex gap-2 align-items-center">
+            <input type="date" id="dash-date" class="form-control form-control-sm form-dairy-control w-auto" title="Show figures for this day" onchange="loadDashboardMetrics()">
+            <button class="btn btn-sm btn-dairy-secondary" onclick="loadDashboardMetrics()">
+              <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </button>
+          </div>
+        </div>
+
+        <div id="dash-tomorrow" class="mb-4"></div>
+
+        <!-- 8 Core Metric Cards Matching User Specification -->
+        <div class="row g-3 mb-4">
+          <!-- Milk Procurement -->
+          <div class="col-xl-3 col-md-6">
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Milk Procurement</span>
+                <div class="kpi-icon-badge bg-primary text-white"><i class="bi bi-droplet-fill"></i></div>
+              </div>
+              <div class="d-flex align-items-baseline">
+                <div class="kpi-value" id="metric-procured">—</div>
+                <span class="kpi-unit">L</span>
+              </div>
+              <div class="kpi-subtext">
+                <span id="metric-procured-sub">Loading...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Production -->
+          <div class="col-xl-3 col-md-6">
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Production</span>
+                <div class="kpi-icon-badge bg-info text-white"><i class="bi bi-gear-fill"></i></div>
+              </div>
+              <div class="d-flex align-items-baseline">
+                <div class="kpi-value" id="metric-production">—</div>
+                <span class="kpi-unit">L</span>
+              </div>
+              <div class="kpi-subtext">
+                <span id="metric-production-sub">Loading...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dispatched -->
+          <div class="col-xl-3 col-md-6">
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Total Dispatched</span>
+                <div class="kpi-icon-badge bg-success text-white"><i class="bi bi-truck"></i></div>
+              </div>
+              <div class="d-flex align-items-baseline">
+                <div class="kpi-value" id="metric-dispatched">—</div>
+                <span class="kpi-unit">L</span>
+              </div>
+              <div class="kpi-subtext">
+                <span id="metric-dispatched-sub">Loading...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Wastage & Closing Stock -->
+          <div class="col-xl-3 col-md-6">
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Wastage / Closing Stock</span>
+                <div class="kpi-icon-badge bg-danger text-white"><i class="bi bi-exclamation-triangle-fill"></i></div>
+              </div>
+              <div class="d-flex align-items-baseline justify-content-between">
+                <div>
+                  <span class="text-danger fw-bold fs-5" id="metric-wastage">—</span>
+                  <small class="text-dim d-block" id="metric-wastage-sub">Wastage</small>
+                </div>
+                <div class="text-end">
+                  <span class="text-warning fw-bold fs-5" id="metric-closing-stock">—</span>
+                  <small class="text-dim d-block">Closing Stock (packed milk)</small>
+                </div>
+              </div>
+              <div class="kpi-subtext">
+                <span id="metric-raw-balance">Raw milk balance: —</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Today's Sales -->
+          <div class="col-xl-3 col-md-6">
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Sales</span>
+                <div class="kpi-icon-badge bg-success text-white"><i class="bi bi-currency-rupee"></i></div>
+              </div>
+              <div class="kpi-value text-white" id="metric-sales">—</div>
+              <div class="kpi-subtext">
+                <span id="metric-sales-sub">Loading...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transport Cost -->
+          <div class="col-xl-3 col-md-6">
+            <div class="glass-panel kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">Transport Cost</span>
+                <div class="kpi-icon-badge bg-warning text-dark"><i class="bi bi-truck"></i></div>
+              </div>
+              <div class="kpi-value text-warning" id="metric-transport-cost">—</div>
+              <div class="kpi-subtext">
+                <span id="metric-transport-sub">Day's transport cost</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transport Cost Per Litre -->
+          <div class="col-xl-3 col-md-6">
+            <div class="glass-panel kpi-card border-primary">
+              <div class="kpi-header">
+                <span class="kpi-title">Cost Per Litre</span>
+                <div class="kpi-icon-badge bg-primary text-white"><i class="bi bi-speedometer"></i></div>
+              </div>
+              <div class="kpi-value text-info" id="metric-cost-per-litre">—</div>
+              <div class="kpi-subtext">
+                <span class="text-info" id="metric-cost-per-litre-sub">Day cost ÷ litres delivered</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Total Outstanding -->
+          <div class="col-xl-3 col-md-6">
+            <div class="glass-panel kpi-card border-danger">
+              <div class="kpi-header">
+                <span class="kpi-title">Total Outstanding</span>
+                <div class="kpi-icon-badge bg-danger text-white"><i class="bi bi-credit-card-2-front-fill"></i></div>
+              </div>
+              <div class="kpi-value text-danger" id="metric-outstanding">—</div>
+              <div class="kpi-subtext">
+                <span id="metric-outstanding-sub">Loading...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="row g-4 mb-4">
+          <div class="col-lg-7">
+            <div class="glass-panel p-4 h-100">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-white mb-0">Daily Milk Volume Flow Funnel</h5>
+                <span class="badge bg-secondary">Litres</span>
+              </div>
+              <div style="height: 280px;">
+                <canvas id="chartMilkFlow"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="glass-panel p-4 h-100">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-white mb-0">Customer Profitability (Top 5)</h5>
+                <span class="badge bg-success-subtle text-success">This month: revenue vs margin</span>
+              </div>
+              <div style="height: 280px;">
+                <canvas id="chartProfitability"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 2. VIEW: B2B CUSTOMERS ================= -->
+      <section id="view-customers" class="module-view d-none">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Customers</h2>
+            <p class="text-muted small mb-0">Customer details, milk rate, delivery boy, app login, credit limit and outstanding balance.</p>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-dairy-secondary" onclick="openDriversModal()">
+              <i class="bi bi-person-badge me-1"></i> Delivery Boys
+            </button>
+            <button class="btn btn-dairy-primary" onclick="openCustomerModal()">
+              <i class="bi bi-plus-lg me-1"></i> Add Customer
+            </button>
+          </div>
+        </div>
+
+        <div class="glass-panel p-3 mb-3">
+          <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+              <input type="search" id="cust-search" class="form-control form-control-sm form-dairy-control" placeholder="Search name, code, phone, area...">
+            </div>
+            <div class="col-md-3">
+              <select id="cust-filter-driver" class="form-select form-select-sm form-dairy-control">
+                <option value="">All delivery boys</option>
+              </select>
+            </div>
+            <div class="col-md-auto">
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="cust-show-inactive">
+                <label class="form-check-label small text-muted" for="cust-show-inactive">Show inactive</label>
+              </div>
+            </div>
+            <div class="col-md text-md-end small text-muted" id="cust-count"></div>
+          </div>
+        </div>
+
+        <div class="glass-panel overflow-hidden">
+          <div class="table-responsive">
+            <table class="table-dairy">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Customer & Contact</th>
+                  <th>Route & Delivery Boy</th>
+                  <th class="text-end">Rate</th>
+                  <th class="text-end">Credit Limit</th>
+                  <th class="text-end">Outstanding</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="customers-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 3. VIEW: CUSTOM PRICING ================= -->
+      <!-- Products the dairy sells: rates (GST included), units, GST, cost price -->
+      <section id="view-products" class="module-view d-none">
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Products</h2>
+            <p class="text-muted small mb-0">Everything customers can order: cow milk, buffalo milk, curd, paneer... The rate is the price per unit
+              <b>including GST</b>; a customer's own rate is set in Custom Pricing. Switched-off products cannot be ordered, but past orders and bills keep them.</p>
+          </div>
+          <div class="d-flex gap-2 align-items-center">
+            <div class="form-check form-switch m-0">
+              <input class="form-check-input" type="checkbox" id="prod-show-off">
+              <label class="form-check-label small" for="prod-show-off">Show switched off</label>
+            </div>
+            <button class="btn btn-dairy-primary" onclick="openProductModal()"><i class="bi bi-plus-lg me-1"></i>Add product</button>
+          </div>
+        </div>
+        <div class="glass-panel overflow-hidden">
+          <div class="table-responsive">
+            <table class="table-dairy">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Unit</th>
+                  <th class="text-end">Rate (incl. GST)</th>
+                  <th class="text-end">GST</th>
+                  <th class="text-end">Cost price</th>
+                  <th class="text-end">Customers with own rate</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="products-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="small mt-2" id="products-result"></div>
+      </section>
+
+      <section id="view-pricing" class="module-view d-none">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Customer Pricing</h2>
+            <p class="text-muted small mb-0">Every customer pays the standard price unless you set their own rate. A new rate applies to milk not yet dispatched; delivered milk and bills keep the rate it was sent at.</p>
+          </div>
+        </div>
+
+        <div class="glass-panel p-3 mb-3">
+          <div class="fw-bold mb-2">Standard B2B price</div>
+          <div id="standard-prices" class="d-flex flex-wrap gap-3"></div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+          <input type="search" id="pricing-search" class="form-control form-dairy-control" style="max-width: 260px;" placeholder="Search customer...">
+          <div class="form-check ms-1">
+            <input class="form-check-input" type="checkbox" id="pricing-custom-only">
+            <label class="form-check-label small" for="pricing-custom-only">Only customers with their own rate</label>
+          </div>
+        </div>
+
+        <div class="glass-panel overflow-hidden">
+          <div class="table-responsive">
+            <table class="table-dairy">
+              <thead>
+                <tr>
+                  <th>Customer Name</th>
+                  <th>Product</th>
+                  <th class="text-end">Standard Price</th>
+                  <th class="text-end">Customer Rate</th>
+                  <th>Difference</th>
+                  <th>Rate Since</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="pricing-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 5. VIEW: ORDERS & DISPATCH ================= -->
+      <section id="view-orders" class="module-view d-none">
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Orders &amp; Dispatch</h2>
+            <p class="text-muted small mb-0">One order per customer per day. Customers order in the app until the cut-off time the evening before (Billing → Dairy Settings). After that, enter or change orders here.</p>
+          </div>
+          <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm btn-dairy-secondary" onclick="shiftOrdersDay(-1)" title="Previous day"><i class="bi bi-chevron-left"></i></button>
+            <input type="date" id="orders-date" class="form-control form-control-sm form-dairy-control" style="width: 150px;" aria-label="Delivery date">
+            <button class="btn btn-sm btn-dairy-secondary" onclick="shiftOrdersDay(1)" title="Next day"><i class="bi bi-chevron-right"></i></button>
+            <button class="btn btn-sm btn-dairy-secondary" onclick="setOrdersDayTomorrow()" title="Show tomorrow's orders">Tomorrow</button>
+            <button class="btn btn-sm btn-success" onclick="downloadOrdersExcel()" title="Download this day's orders as Excel">
+              <i class="bi bi-file-earmark-excel me-1"></i>Excel
+            </button>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3" id="orders-summary"></div>
+
+        <div class="row g-4 mb-4">
+          <div class="col-lg-6">
+            <div class="glass-panel p-3 h-100">
+              <h5 class="fw-bold mb-1">Add / Change an Order</h5>
+              <p class="text-muted small mb-3">For customers who call the dairy. Works any time before dispatch, even after the customers' cut-off. Quantity 0 cancels that day's order.</p>
+              <form id="form-admin-order" class="row g-2 align-items-end">
+                <div class="col-sm-7">
+                  <label class="form-label text-muted small mb-1" for="ao-customer">Customer</label>
+                  <select id="ao-customer" class="form-select form-select-sm form-dairy-control" required></select>
+                </div>
+                <div class="col-sm-5">
+                  <label class="form-label text-muted small mb-1" for="ao-date">Date</label>
+                  <input type="date" id="ao-date" class="form-control form-control-sm form-dairy-control" required>
+                </div>
+                <div class="col-12">
+                  <div class="row g-2" id="ao-items"></div>
+                </div>
+                <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
+                  <button type="submit" class="btn btn-sm btn-dairy-primary px-4">Save order</button>
+                  <span class="small text-muted" id="ao-total"></span>
+                </div>
+              </form>
+              <div class="small mt-2 text-muted" id="ao-current"></div>
+              <div class="small mt-1" id="ao-result"></div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="glass-panel p-3 h-100">
+              <h5 class="fw-bold mb-1">Dispatch to Delivery Boys</h5>
+              <p class="text-muted small mb-2">Orders go to the delivery boys <b>automatically</b> at
+                <b id="disp-time">--</b> on the delivery day (change it in Billing &rarr; Dairy Settings).
+                Customers get a "sent for delivery" notice. Orders added later go out within a minute.</p>
+              <div class="small mb-2" id="disp-status"></div>
+              <div id="disp-hold-box" class="mb-2">
+                <label class="form-label text-muted small mb-1" for="disp-hold-note">Cannot send the milk? Hold the dispatch and write why (customers see this note at dispatch time)</label>
+                <textarea id="disp-hold-note" class="form-control form-control-sm form-dairy-control mb-2" rows="2" maxlength="300"
+                  placeholder="e.g. Milk tanker late from the plant, delivery after 8 AM"></textarea>
+                <div class="d-flex flex-wrap gap-2">
+                  <button class="btn btn-sm btn-warning" id="disp-hold-btn" onclick="holdDispatch()"><i class="bi bi-pause-circle me-1"></i>Hold dispatch</button>
+                  <button class="btn btn-sm btn-outline-success d-none" id="disp-release-btn" onclick="releaseDispatchHold()"><i class="bi bi-play-circle me-1"></i>Remove hold</button>
+                </div>
+              </div>
+              <div class="d-flex flex-wrap gap-2 align-items-center">
+                <button class="btn btn-sm btn-dairy-primary" id="dispatch-now-btn" onclick="dispatchOrders()">
+                  <i class="bi bi-truck me-1"></i> Dispatch now <span id="dispatch-day-label"></span>
+                </button>
+                <span class="small" id="dispatch-hint"></span>
+              </div>
+              <div class="small mt-2" id="dispatch-result"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+          <input type="search" id="orders-search" class="form-control form-control-sm form-dairy-control" style="max-width: 240px;" placeholder="Search customer...">
+          <select id="orders-status" class="form-select form-select-sm form-dairy-control" style="max-width: 200px;">
+            <option value="">All statuses</option>
+            <option value="confirmed">Confirmed (not dispatched)</option>
+            <option value="out_for_delivery">Out for delivery</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        <div class="glass-panel overflow-hidden">
+          <div class="table-responsive">
+            <table class="table-dairy">
+              <thead>
+                <tr>
+                  <th>Order #</th>
+                  <th>Customer</th>
+                  <th class="text-end">Ordered</th>
+                  <th class="text-end">Delivered</th>
+                  <th class="text-end">Rate</th>
+                  <th class="text-end">Amount</th>
+                  <th>Status / Bill</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="orders-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 5b. VIEW: CUSTOMER CLAIMS ================= -->
+      <section id="view-claims" class="module-view d-none">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Customer Claims</h2>
+            <p class="text-muted small mb-0">Milk spoiled, short or not delivered, reported by customers with photos. Verify against the delivery photo and signature, then approve or reject. Approved litres are deducted from the bill, or refunded separately.</p>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+          <input type="search" id="claims-search" class="form-control form-control-sm form-dairy-control" style="max-width: 220px;" placeholder="Search customer / claim #">
+          <select id="claims-filter" class="form-select form-select-sm form-dairy-control w-auto">
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="">All</option>
+          </select>
+          </div>
+        </div>
+        <div class="glass-panel overflow-hidden">
+          <div class="table-responsive">
+            <table class="table-dairy">
+              <thead>
+                <tr>
+                  <th>Claim #</th>
+                  <th>Customer</th>
+                  <th>Delivery Date</th>
+                  <th>Problem</th>
+                  <th class="text-end">Claimed</th>
+                  <th class="text-end">Amount</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="claims-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 6. VIEW: TRANSPORT COSTING ================= -->
+      <section id="view-transport" class="module-view d-none">
+        <div class="mb-3">
+          <h2 class="h4 fw-bold text-white mb-1">Transport Cost per Litre</h2>
+          <p class="text-muted small mb-0">Enter the total transport cost of each day (all vehicles, drivers and fuel together). Cost per litre = that day's cost ÷ milk delivered to all customers that day. 15-day and monthly figures add up the days.</p>
+        </div>
+
+        <!-- Enter one day's cost -->
+        <div class="glass-panel p-3 mb-3">
+          <div class="row g-2 align-items-end">
+            <div class="col-sm-6 col-lg-2">
+              <label class="form-label text-muted small mb-1" for="tc-day">Date</label>
+              <input type="date" id="tc-day" class="form-control form-dairy-control">
+            </div>
+            <div class="col-sm-6 col-lg-2">
+              <label class="form-label text-muted small mb-1" for="tc-amount">Transport cost (₹)</label>
+              <input type="number" id="tc-amount" min="0" step="1" class="form-control form-dairy-control" placeholder="e.g. 27000">
+            </div>
+            <div class="col-lg-4">
+              <label class="form-label text-muted small mb-1" for="tc-note">Note (optional)</label>
+              <input type="text" id="tc-note" maxlength="200" class="form-control form-dairy-control" placeholder="e.g. 3 vehicles, extra trip to Panvel">
+            </div>
+            <div class="col-lg-2">
+              <button class="btn btn-dairy-primary w-100" onclick="saveDayTransportCost()"><i class="bi bi-check-lg me-1"></i>Save</button>
+            </div>
+            <div class="col-lg-2 small" id="tc-day-info"></div>
+          </div>
+        </div>
+
+        <!-- Period -->
+        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+          <div>
+            <div class="fw-bold" id="tc-period-label"></div>
+            <div class="small text-warning" id="tc-warnings"></div>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <select id="tc-period" class="form-select form-select-sm form-dairy-control w-auto">
+              <option value="daily">Day</option>
+              <option value="fortnightly">15 Days</option>
+              <option value="monthly" selected>Month</option>
+              <option value="custom">Custom</option>
+            </select>
+            <input type="date" id="tc-ref" class="form-control form-control-sm form-dairy-control w-auto">
+            <input type="date" id="tc-from" class="form-control form-control-sm form-dairy-control w-auto d-none" title="From">
+            <input type="date" id="tc-to" class="form-control form-control-sm form-dairy-control w-auto d-none" title="To">
+          </div>
+        </div>
+        <div class="row g-3 mb-3" id="tc-summary"></div>
+
+        <div class="glass-panel overflow-hidden mb-4">
+          <div class="table-responsive">
+            <table class="table-dairy sr-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th class="text-end">Customers</th>
+                  <th class="text-end">Milk Delivered (L)</th>
+                  <th class="text-end">Transport Cost (₹)</th>
+                  <th class="text-end">Cost per Litre</th>
+                  <th>Note</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="tc-days-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 7. VIEW: MILK PROCUREMENT ================= -->
+      <section id="view-procurement" class="module-view d-none">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Milk Procurement & Quality Testing</h2>
+            <p class="text-muted small mb-0">Farmer/Vendor collection batches with automated Fat %, SNF %, CLR reading, and rate calculation chart.</p>
+          </div>
+          <button class="btn btn-dairy-primary" data-bs-toggle="modal" data-bs-target="#modalProcurement">
+            <i class="bi bi-plus-lg me-1"></i> Record Milk Collection
+          </button>
+        </div>
+
+        <div class="glass-panel overflow-hidden">
+          <div class="table-responsive">
+            <table class="table-dairy">
+              <thead>
+                <tr>
+                  <th>Batch #</th>
+                  <th>Farmer / Vendor</th>
+                  <th>Milk Type</th>
+                  <th>Quantity</th>
+                  <th>Fat %</th>
+                  <th>SNF %</th>
+                  <th>Rate/Litre</th>
+                  <th>Total Payout</th>
+                  <th>Quality</th>
+                </tr>
+              </thead>
+              <tbody id="procurement-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 8. VIEW: PRODUCTION & YIELD ================= -->
+      <section id="view-production" class="module-view d-none">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Processing, Production & FEFO Inventory</h2>
+            <p class="text-muted small mb-0">Raw milk pasteurization and 1L pouch packaging with yield % calculation and First-Expiry-First-Out management.</p>
+          </div>
+        </div>
+
+        <div class="glass-panel overflow-hidden">
+          <div class="table-responsive">
+            <table class="table-dairy">
+              <thead>
+                <tr>
+                  <th>Batch #</th>
+                  <th>Process Type</th>
+                  <th>Input Raw Milk</th>
+                  <th>Finished Output</th>
+                  <th>Wastage</th>
+                  <th>Yield %</th>
+                  <th>Expiry Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="production-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 9. VIEW: BILLING ================= -->
+      <section id="view-invoices" class="module-view d-none">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Milk Bills</h2>
+            <p class="text-muted small mb-0">Generate monthly, 15-day or daily bills for customers and download them as PDF.</p>
+          </div>
+          <button class="btn btn-dairy-secondary" onclick="openBusinessSettings()">
+            <i class="bi bi-gear me-1"></i> Dairy Settings
+          </button>
+        </div>
+
+        <!-- Generate bills -->
+        <div class="glass-panel p-3 mb-4">
+          <h5 class="fw-bold mb-3">Generate Bills</h5>
+          <div class="row g-2 align-items-end">
+            <div class="col-md-auto">
+              <label class="form-label text-muted small mb-1">Bill Period</label>
+              <div class="btn-group d-flex" role="group" id="bill-type-group">
+                <button type="button" class="btn btn-sm btn-outline-primary active" data-bill-type="monthly">Monthly</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bill-type="fortnightly">15 Days</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bill-type="daily">Daily</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bill-type="custom">Custom</button>
+              </div>
+            </div>
+            <div class="col-md-2" id="bill-month-wrap">
+              <label class="form-label text-muted small mb-1">Month</label>
+              <input type="month" id="bill-month" class="form-control form-control-sm form-dairy-control">
+            </div>
+            <div class="col-md-2 d-none" id="bill-half-wrap">
+              <label class="form-label text-muted small mb-1">Half</label>
+              <select id="bill-half" class="form-select form-select-sm form-dairy-control">
+                <option value="1">1st - 15th</option>
+                <option value="2">16th - Month end</option>
+              </select>
+            </div>
+            <div class="col-md-2 d-none" id="bill-day-wrap">
+              <label class="form-label text-muted small mb-1">Date</label>
+              <input type="date" id="bill-day" class="form-control form-control-sm form-dairy-control">
+            </div>
+            <div class="col-md-2 d-none" id="bill-from-wrap">
+              <label class="form-label text-muted small mb-1">From</label>
+              <input type="date" id="bill-from" class="form-control form-control-sm form-dairy-control">
+            </div>
+            <div class="col-md-2 d-none" id="bill-to-wrap">
+              <label class="form-label text-muted small mb-1">To</label>
+              <input type="date" id="bill-to" class="form-control form-control-sm form-dairy-control">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label text-muted small mb-1">Customer</label>
+              <select id="bill-customer" class="form-select form-select-sm form-dairy-control">
+                <option value="">All Customers</option>
+              </select>
+            </div>
+            <div class="col-md-auto d-flex gap-2">
+              <button class="btn btn-sm btn-dairy-secondary" onclick="previewBills()">
+                <i class="bi bi-eye me-1"></i> Preview
+              </button>
+              <button class="btn btn-sm btn-dairy-primary" onclick="generateBills()">
+                <i class="bi bi-receipt me-1"></i> Generate Bills
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="glass-panel overflow-hidden mb-4 d-none" id="bill-preview-panel">
+          <div class="p-3 border-bottom border-glass">
+            <h5 class="fw-bold mb-0">Preview: <span id="bill-preview-label"></span></h5>
+            <small class="text-muted">Nothing is saved until you click Generate Bills.</small>
+            <div class="small mt-1" id="bill-preview-note"></div>
+          </div>
+          <div class="table-responsive">
+            <table class="table-dairy sr-table">
+              <thead>
+                <tr>
+                  <th class="sr-col-no">Sr. No</th>
+                  <th>Customer</th>
+                  <th class="text-end">Quantity</th>
+                  <th class="text-end">Rate (₹)</th>
+                  <th class="text-end">Amount (₹)</th>
+                  <th class="text-end d-none d-md-table-cell">Previous Balance (₹)</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="bill-preview-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Bills list -->
+        <div class="glass-panel overflow-hidden">
+          <div class="p-3 border-bottom border-glass d-flex justify-content-between align-items-end flex-wrap gap-2">
+            <div>
+              <h5 class="fw-bold mb-1">Bills</h5>
+              <div class="d-flex gap-2 flex-wrap">
+                <input type="month" id="bills-filter-month" class="form-control form-control-sm form-dairy-control w-auto" title="Bills for this month">
+                <select id="bills-filter-type" class="form-select form-select-sm form-dairy-control w-auto">
+                  <option value="">All types</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="fortnightly">15 Days</option>
+                  <option value="daily">Daily</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-dairy-primary" onclick="downloadAllBills()">
+              <i class="bi bi-file-earmark-pdf me-1"></i> Download All (PDF)
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="table-dairy">
+              <thead>
+                <tr>
+                  <th>Bill #</th>
+                  <th>Customer</th>
+                  <th>Period</th>
+                  <th class="text-end">Quantity</th>
+                  <th class="text-end">Amount (₹)</th>
+                  <th class="text-end">Paid (₹)</th>
+                  <th class="text-end">Balance (₹)</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="bills-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 10. VIEW: CUSTOMER PROFITABILITY ================= -->
+      <section id="view-profitability" class="module-view d-none">
+        <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Customer Profitability</h2>
+            <p class="text-muted small mb-0">Revenue (net sales, same as the Sales Register) − milk cost (litres delivered × cost price) − transport (each route's fixed cost for the day, shared by litres delivered) = margin. Claimed milk still cost the dairy, so claims lower the margin.</p>
+          </div>
+          <div class="d-flex gap-2 align-items-center flex-wrap">
+            <select id="pf-period" class="form-select form-select-sm form-dairy-control w-auto">
+              <option value="monthly">Month</option>
+              <option value="custom">Custom dates</option>
+            </select>
+            <input type="month" id="pf-month" class="form-control form-control-sm form-dairy-control w-auto">
+            <input type="date" id="pf-from" class="form-control form-control-sm form-dairy-control w-auto d-none" title="From">
+            <input type="date" id="pf-to" class="form-control form-control-sm form-dairy-control w-auto d-none" title="To">
+          </div>
+        </div>
+
+        <div class="glass-panel p-3 mb-3 d-flex flex-wrap align-items-center gap-3">
+          <div class="small"><span class="text-muted">Cost prices:</span> <b id="pf-cost-price">—</b></div>
+          <button class="btn btn-sm btn-outline-warning" onclick="openProductsView()"><i class="bi bi-pencil me-1"></i>Change in Products</button>
+          <small class="text-muted">What one unit of each product costs the dairy. Used only for profit, never on bills. Delivered orders keep the cost of their day.</small>
+        </div>
+
+        <div class="row g-3 mb-3" id="pf-summary"></div>
+        <div class="small text-warning mb-2" id="pf-notes"></div>
+
+        <div class="glass-panel overflow-hidden">
+          <div class="table-responsive">
+            <table class="table-dairy">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th class="text-end">Litres</th>
+                  <th class="text-end">Revenue</th>
+                  <th class="text-end">Milk Cost</th>
+                  <th class="text-end">Transport</th>
+                  <th class="text-end">Margin</th>
+                  <th class="text-end">Margin / L</th>
+                  <th>Margin %</th>
+                </tr>
+              </thead>
+              <tbody id="profitability-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 11. VIEW: SALES REPORTS (DAILY / WEEKLY / MONTHLY) ================= -->
+      <section id="view-sales-report" class="module-view d-none">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Sales Register</h2>
+            <p class="text-muted small mb-0">Product-wise list of every customer's rate, quantity and total. Counts milk actually sold, the same way as the bills: delivered milk only, less approved claims.</p>
+          </div>
+          <button class="btn btn-dairy-primary" onclick="downloadSalesReportCsv()">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Download Excel (CSV)
+          </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="glass-panel p-3 mb-4">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-auto">
+              <label class="form-label text-muted small mb-1">Period</label>
+              <div class="btn-group d-flex" role="group" id="sr-period-group">
+                <button type="button" class="btn btn-sm btn-outline-primary" data-period="daily">Daily</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" data-period="weekly">Weekly</button>
+                <button type="button" class="btn btn-sm btn-outline-primary active" data-period="monthly">Monthly</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" data-period="custom">Custom</button>
+              </div>
+            </div>
+            <div class="col-md-2" id="sr-ref-wrap">
+              <label class="form-label text-muted small mb-1" id="sr-ref-label">Month</label>
+              <input type="date" id="sr-ref-date" class="form-control form-control-sm form-dairy-control">
+              <input type="month" id="sr-ref-month" class="form-control form-control-sm form-dairy-control">
+            </div>
+            <div class="col-md-2 d-none" id="sr-start-wrap">
+              <label class="form-label text-muted small mb-1">From</label>
+              <input type="date" id="sr-start-date" class="form-control form-control-sm form-dairy-control">
+            </div>
+            <div class="col-md-2 d-none" id="sr-end-wrap">
+              <label class="form-label text-muted small mb-1">To</label>
+              <input type="date" id="sr-end-date" class="form-control form-control-sm form-dairy-control">
+            </div>
+            <div class="col-md-auto">
+              <div class="btn-group" role="group">
+                <button type="button" class="btn btn-sm btn-dairy-secondary" onclick="shiftSalesReportPeriod(-1)" title="Previous period"><i class="bi bi-chevron-left"></i></button>
+                <button type="button" class="btn btn-sm btn-dairy-secondary" onclick="shiftSalesReportPeriod(1)" title="Next period"><i class="bi bi-chevron-right"></i></button>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label text-muted small mb-1">Product</label>
+              <select id="sr-product" class="form-select form-select-sm form-dairy-control">
+                <option value="">All Products</option>
+              </select>
+            </div>
+            <div class="col-md-auto">
+              <button class="btn btn-sm btn-dairy-primary" onclick="loadSalesReport()">
+                <i class="bi bi-search me-1"></i> Show Report
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="row g-3 mb-4">
+          <div class="col-md-3 col-6">
+            <div class="glass-panel kpi-card">
+              <div class="kpi-title">Period</div>
+              <div class="fw-bold mt-1" id="sr-period-label">-</div>
+              <div class="kpi-subtext" id="sr-period-range"></div>
+            </div>
+          </div>
+          <div class="col-md-3 col-6">
+            <div class="glass-panel kpi-card">
+              <div class="kpi-title">Customers / Orders</div>
+              <div class="kpi-value" id="sr-kpi-customers">0</div>
+              <div class="kpi-subtext" id="sr-kpi-orders">0 orders</div>
+            </div>
+          </div>
+          <div class="col-md-3 col-6">
+            <div class="glass-panel kpi-card">
+              <div class="kpi-title">Milk Sold (L)</div>
+              <div class="kpi-value" id="sr-kpi-qty">0</div>
+              <div class="kpi-subtext" id="sr-kpi-products">0 products</div>
+            </div>
+          </div>
+          <div class="col-md-3 col-6">
+            <div class="glass-panel kpi-card border-primary">
+              <div class="kpi-title">Total Amount</div>
+              <div class="kpi-value text-info" id="sr-kpi-amount">₹0</div>
+              <div class="kpi-subtext">All products</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- How ordered milk becomes sales (same rules as the bills) -->
+        <div id="sr-recon"></div>
+
+        <!-- One register per product (Excel-style) -->
+        <div id="sr-registers"></div>
+
+        <!-- Product-wise summary across all customers -->
+        <div class="glass-panel overflow-hidden mb-4" id="sr-summary-panel">
+          <div class="p-3 border-bottom border-glass">
+            <h5 class="fw-bold mb-0">Product-wise Summary</h5>
+            <small class="text-muted">Total quantity and amount of each product across all customers</small>
+          </div>
+          <div class="table-responsive">
+            <table class="table-dairy sr-table">
+              <thead>
+                <tr>
+                  <th class="sr-col-no">Sr. No</th>
+                  <th>Product</th>
+                  <th class="text-end d-none d-md-table-cell">Customers</th>
+                  <th class="text-end">Avg Rate (₹)</th>
+                  <th class="text-end">Total Quantity</th>
+                  <th class="text-end">Total (₹)</th>
+                </tr>
+              </thead>
+              <tbody id="sr-product-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Email (SMTP) settings: bills and notices by email -->
+      <section id="view-email" class="module-view d-none">
+        <div class="mb-3">
+          <h2 class="h4 fw-bold text-white mb-1">Email (SMTP)</h2>
+          <p class="text-muted small mb-0">Send bills (with PDF) and important updates to customers by email from your own domain email.
+            Customers need an email address in their customer details.</p>
+        </div>
+        <div class="row g-4">
+          <div class="col-xl-7">
+            <form id="form-email" class="glass-panel p-3" autocomplete="off">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="fw-bold mb-0">SMTP account</h5>
+                <div class="form-check form-switch m-0">
+                  <input class="form-check-input" type="checkbox" role="switch" id="em-enabled">
+                  <label class="form-check-label fw-bold" for="em-enabled">Email on</label>
+                </div>
+              </div>
+              <div class="alert alert-info small py-2">
+                <b>Hostinger email:</b> host <code>smtp.hostinger.com</code>, port <code>465</code>, security <b>SSL</b>,
+                username = your full email (e.g. <code>billing@yourdomain.com</code>) and its password.
+                <a href="#" onclick="fillHostinger(); return false;">Fill Hostinger values</a>
+              </div>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label text-muted small mb-1" for="em-host">SMTP host</label>
+                  <input id="em-host" class="form-control form-dairy-control" placeholder="smtp.hostinger.com">
+                </div>
+                <div class="col-6 col-md-3">
+                  <label class="form-label text-muted small mb-1" for="em-port">Port</label>
+                  <input id="em-port" type="number" min="1" max="65535" class="form-control form-dairy-control" placeholder="465">
+                </div>
+                <div class="col-6 col-md-3">
+                  <label class="form-label text-muted small mb-1" for="em-security">Security</label>
+                  <select id="em-security" class="form-select form-dairy-control">
+                    <option value="ssl">SSL (465)</option>
+                    <option value="starttls">STARTTLS (587)</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label text-muted small mb-1" for="em-username">Username (full email)</label>
+                  <input id="em-username" class="form-control form-dairy-control" placeholder="billing@yourdomain.com" autocomplete="off">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label text-muted small mb-1" for="em-password">Password</label>
+                  <input id="em-password" type="password" class="form-control form-dairy-control" autocomplete="new-password">
+                  <small class="text-dim" id="em-password-hint"></small>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label text-muted small mb-1" for="em-from-email">'From' email</label>
+                  <input id="em-from-email" type="email" class="form-control form-dairy-control" placeholder="billing@yourdomain.com">
+                  <small class="text-dim">Usually the same as the username.</small>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label text-muted small mb-1" for="em-from-name">'From' name</label>
+                  <input id="em-from-name" class="form-control form-dairy-control" placeholder="Akash Dairy Farm">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label text-muted small mb-1" for="em-reply-to">Reply-to email (optional)</label>
+                  <input id="em-reply-to" type="email" class="form-control form-dairy-control" placeholder="office@yourdomain.com">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label text-muted small mb-1" for="em-site-url">Portal address (for links in emails)</label>
+                  <input id="em-site-url" class="form-control form-dairy-control" placeholder="https://erp.yourdomain.com">
+                </div>
+              </div>
+
+              <h6 class="fw-bold mt-4 mb-2">What customers get by email</h6>
+              <div class="row g-1 small">
+                <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" id="em-send_bills"><label class="form-check-label" for="em-send_bills">New / cancelled bills (with PDF)</label></div></div>
+                <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" id="em-send_payments"><label class="form-check-label" for="em-send_payments">Payment received</label></div></div>
+                <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" id="em-send_claims"><label class="form-check-label" for="em-send_claims">Claim approved / rejected</label></div></div>
+                <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" id="em-send_orders"><label class="form-check-label" for="em-send_orders">Order confirmation &amp; changes by the dairy</label></div></div>
+                <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" id="em-send_delays"><label class="form-check-label" for="em-send_delays">Dispatch on hold &amp; delays on the way</label></div></div>
+                <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" id="em-send_daily_delivery"><label class="form-check-label" for="em-send_daily_delivery">Delivery details (delivered / short / not delivered)</label></div></div>
+              </div>
+
+              <h6 class="fw-bold mt-4 mb-2">Alerts for the dairy</h6>
+              <div class="row g-2 align-items-end">
+                <div class="col-md-7">
+                  <label class="form-label text-muted small mb-1" for="em-admin-email">Send alerts to</label>
+                  <input id="em-admin-email" type="email" class="form-control form-dairy-control" placeholder="owner@yourdomain.com">
+                </div>
+                <div class="col-md-5">
+                  <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="em-send_admin_alerts"><label class="form-check-label small" for="em-send_admin_alerts">New claims, short deliveries, cash collected, route problems</label></div>
+                </div>
+              </div>
+
+              <div class="d-flex flex-wrap gap-2 mt-4">
+                <button type="submit" class="btn btn-dairy-primary"><i class="bi bi-check2-circle me-1"></i>Save</button>
+              </div>
+              <div class="small mt-2" id="em-result"></div>
+            </form>
+          </div>
+          <div class="col-xl-5">
+            <div class="glass-panel p-3 mb-3">
+              <h5 class="fw-bold mb-2">Status</h5>
+              <div class="small" id="em-status">Loading...</div>
+              <hr>
+              <label class="form-label text-muted small mb-1" for="em-test-to">Send a test email (save first)</label>
+              <div class="input-group input-group-sm">
+                <input id="em-test-to" type="email" class="form-control form-dairy-control" placeholder="you@gmail.com">
+                <button class="btn btn-dairy-secondary" id="em-test-btn" onclick="sendTestEmail()"><i class="bi bi-send me-1"></i>Send test</button>
+              </div>
+              <div class="small mt-2" id="em-test-result"></div>
+            </div>
+            <div class="glass-panel p-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="fw-bold mb-0">Recent emails</h5>
+                <div class="d-flex gap-1">
+                  <button class="btn btn-sm btn-outline-warning d-none" id="em-retry-btn" onclick="retryFailedEmails()">Retry failed</button>
+                  <button class="btn btn-sm btn-dairy-secondary" onclick="loadEmailLog()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+                </div>
+              </div>
+              <div id="em-log" class="small" style="max-height: 520px; overflow-y: auto;"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Legal pages editor: Privacy Policy, Terms, Account deletion -->
+      <section id="view-legal" class="module-view d-none">
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+          <div>
+            <h2 class="h4 fw-bold text-white mb-1">Legal Pages</h2>
+            <p class="text-muted small mb-0">The public Privacy Policy, Terms &amp; Conditions and Account Deletion pages linked from the app and the Play Store.
+              Dairy name, address, phone and email come from Billing &rarr; Dairy Settings through the <code>{placeholders}</code>.</p>
+          </div>
+        </div>
+        <div class="seg mb-3" id="legal-tabs" style="max-width: 560px;">
+          <button type="button" class="active" data-slug="privacy">Privacy Policy</button>
+          <button type="button" data-slug="terms">Terms &amp; Conditions</button>
+          <button type="button" data-slug="delete_account">Delete Account</button>
+        </div>
+        <div class="row g-4">
+          <div class="col-xl-8">
+            <div class="glass-panel p-3">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <div class="small" id="legal-meta">Loading...</div>
+                <a class="btn btn-sm btn-dairy-secondary" id="legal-open" href="/privacy" target="_blank" rel="noopener">
+                  <i class="bi bi-box-arrow-up-right me-1"></i>Open live page</a>
+              </div>
+              <textarea id="legal-text" class="form-control form-dairy-control font-monospace" rows="24" spellcheck="true"
+                style="font-size: 0.85rem; line-height: 1.5;" aria-label="Page text"></textarea>
+              <div class="d-flex flex-wrap gap-2 mt-3">
+                <button class="btn btn-dairy-secondary" onclick="previewLegalPage()"><i class="bi bi-eye me-1"></i>Preview</button>
+                <button class="btn btn-dairy-primary" id="legal-save" onclick="saveLegalPage()"><i class="bi bi-check2-circle me-1"></i>Save &amp; publish</button>
+                <button class="btn btn-outline-danger ms-auto" id="legal-reset" onclick="resetLegalPage()"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset to default</button>
+              </div>
+              <div class="small mt-2" id="legal-result"></div>
+            </div>
+          </div>
+          <div class="col-xl-4">
+            <div class="glass-panel p-3 mb-3">
+              <h6 class="fw-bold mb-2">Insert dairy details</h6>
+              <p class="small text-muted mb-2">Click to insert at the cursor. They fill in from Dairy Settings, so the page stays right when the details change.</p>
+              <div class="d-flex flex-wrap gap-1" id="legal-placeholders"></div>
+            </div>
+            <div class="glass-panel p-3 small">
+              <h6 class="fw-bold mb-2">How to format</h6>
+              <table class="table table-sm mb-2 small">
+                <tbody>
+                  <tr><td><code>## Heading</code></td><td>Section heading</td></tr>
+                  <tr><td><code>### Heading</code></td><td>Smaller heading</td></tr>
+                  <tr><td><code>- item</code></td><td>List (each line starts with "- ")</td></tr>
+                  <tr><td><code>**bold**</code></td><td><b>bold</b></td></tr>
+                  <tr><td><code>[text](/terms)</code></td><td>Link (https://, /page, mailto:)</td></tr>
+                  <tr><td>Empty line</td><td>New paragraph</td></tr>
+                </tbody>
+              </table>
+              <div class="text-muted">Saving changes the page's "Last updated" date. For the Play Store, keep the Privacy Policy matching what the app really collects.
+                Get legal text checked by your CA / lawyer.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- (Email view is inside main; see view-email) -->
+<!-- Modal: legal page preview -->
+<div class="modal fade" id="modalLegalPreview" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <h5 class="modal-title fw-bold">Preview (not saved yet)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        <iframe id="legal-preview-frame" title="Page preview" sandbox="" style="width: 100%; height: 75vh; border: 0; background: #fff;"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODALS ================= -->
+
+<!-- Modal: add / edit product -->
+<div class="modal fade" id="modalProduct" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content dairy-modal">
+      <form id="form-product">
+        <div class="modal-header dairy-modal-header">
+          <h5 class="modal-title fw-bold" id="prod-modal-title">Add product</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="prod-id">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label text-muted small" for="prod-name">Product name *</label>
+              <input id="prod-name" class="form-control form-dairy-control" maxlength="100" required placeholder="e.g. Buffalo Milk">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label text-muted small" for="prod-category">Category</label>
+              <input id="prod-category" class="form-control form-dairy-control" list="prod-categories" maxlength="50" placeholder="Milk">
+              <datalist id="prod-categories"><option>Milk</option><option>Curd</option><option>Paneer</option><option>Ghee</option><option>Butter</option><option>Buttermilk</option><option>Other</option></datalist>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label text-muted small" for="prod-unit">Sold per *</label>
+              <select id="prod-unit" class="form-select form-dairy-control">
+                <option value="L">Litre (L)</option>
+                <option value="kg">Kg</option>
+                <option value="pcs">Piece (pcs)</option>
+                <option value="packet">Packet</option>
+                <option value="box">Box</option>
+              </select>
+              <small class="text-dim" id="prod-unit-note"></small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small" for="prod-price">Rate per unit, incl. GST (₹) *</label>
+              <input id="prod-price" type="number" min="0.01" step="0.01" class="form-control form-dairy-control" required>
+              <small class="text-dim">For customers without their own rate.</small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small" for="prod-gst">GST %</label>
+              <select id="prod-gst" class="form-select form-dairy-control">
+                <option value="0">0% (fresh milk, curd)</option>
+                <option value="5">5%</option>
+                <option value="12">12%</option>
+                <option value="18">18%</option>
+                <option value="28">28%</option>
+                <option value="40">40%</option>
+              </select>
+              <small class="text-dim" id="prod-gst-note">Shown on bills only when your GSTIN is set in Dairy Settings.</small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small" for="prod-cost">Cost price per unit (₹)</label>
+              <input id="prod-cost" type="number" min="0" step="0.01" class="form-control form-dairy-control">
+              <small class="text-dim">For the profit report only.</small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small" for="prod-pack">Pack size (optional)</label>
+              <input id="prod-pack" class="form-control form-dairy-control" maxlength="50" placeholder="e.g. 500 g cup">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small" for="prod-hsn">HSN code (optional)</label>
+              <input id="prod-hsn" class="form-control form-dairy-control" maxlength="8" placeholder="e.g. 0401">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small" for="prod-sort">Position in order form</label>
+              <input id="prod-sort" type="number" step="1" class="form-control form-dairy-control" value="0">
+              <small class="text-dim">Smaller number shows first.</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted small" for="prod-desc">Short description (optional, shown to customers)</label>
+              <input id="prod-desc" class="form-control form-dairy-control" maxlength="200">
+            </div>
+          </div>
+          <div class="small mt-3" id="prod-result"></div>
+        </div>
+        <div class="modal-footer dairy-modal-footer">
+          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dairy-primary">Save product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Customer Ledger Statement -->
+<div class="modal fade" id="modalLedger" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <h5 class="modal-title fw-bold">Customer Ledger Statement: <span id="ledger-customer-name" class="text-info"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <div class="glass-panel-subtle p-3">
+              <small class="text-muted">Approved Credit Limit</small>
+              <div class="fs-5 fw-bold text-body" id="ledger-credit-limit">₹0</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="glass-panel-subtle p-3">
+              <small class="text-muted">Current Outstanding Balance</small>
+              <div class="fs-5 fw-bold text-danger" id="ledger-outstanding">₹0</div>
+            </div>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table-dairy">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Reference</th>
+                <th>Narration</th>
+                <th class="text-end">Debit (+)</th>
+                <th class="text-end">Credit (−)</th>
+                <th class="text-end">Balance</th>
+              </tr>
+            </thead>
+            <tbody id="ledger-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer dairy-modal-footer">
+        <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Custom Price Modifier -->
+<div class="modal fade" id="modalCustomPrice" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <h5 class="modal-title fw-bold">Set Customer Price</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-custom-price">
+        <div class="modal-body p-4">
+          <input type="hidden" id="price-customer-id">
+          <p class="text-muted mb-3">Rate for <strong id="price-customer-name" class="text-body"></strong></p>
+          <div class="mb-3">
+            <label class="form-label text-muted small">Select Product</label>
+            <select id="price-product-select" class="form-select form-dairy-control"></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted small">Customer Rate per Unit (₹)</label>
+            <input type="number" step="0.01" min="0.01" id="price-custom-input" class="form-control form-dairy-control" required>
+            <small class="text-dim" id="price-standard-hint"></small>
+          </div>
+          <small class="text-dim">Applies to this customer's orders that are not dispatched yet. Delivered milk keeps its old rate.</small>
+        </div>
+        <div class="modal-footer dairy-modal-footer">
+          <button type="button" class="btn btn-outline-secondary me-auto d-none" id="price-reset-btn">Use standard price</button>
+          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dairy-primary">Save Rate</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add / Edit Customer -->
+<div class="modal fade" id="modalCustomer" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <h5 class="modal-title fw-bold" id="cust-modal-title">Add Customer</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-customer">
+        <div class="modal-body p-4">
+          <input type="hidden" id="cust-id">
+          <h6 class="fw-bold text-muted small text-uppercase mb-2">Basic Details</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Customer / Business Name *</label>
+              <input type="text" id="cust-business-name" class="form-control form-dairy-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Contact Person *</label>
+              <input type="text" id="cust-contact-person" class="form-control form-dairy-control" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small">Mobile *</label>
+              <input type="tel" id="cust-phone" class="form-control form-dairy-control" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small">Email</label>
+              <input type="email" id="cust-email" class="form-control form-dairy-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small">Customer Type</label>
+              <select id="cust-type" class="form-select form-dairy-control">
+                <option value="retailer">Retailer</option>
+                <option value="distributor">Distributor</option>
+                <option value="hotel">Hotel</option>
+                <option value="restaurant">Restaurant</option>
+                <option value="cafe">Cafe</option>
+                <option value="mess">Mess</option>
+                <option value="household">Household</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted small">Delivery Address *</label>
+              <input type="text" id="cust-address" class="form-control form-dairy-control" required>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label text-muted small">Billing Address <span class="text-dim">(blank = same as delivery)</span></label>
+              <input type="text" id="cust-billing-address" class="form-control form-dairy-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small">GSTIN</label>
+              <input type="text" id="cust-gstin" class="form-control form-dairy-control" maxlength="15">
+            </div>
+          </div>
+
+          <h6 class="fw-bold text-muted small text-uppercase mb-2">Milk Supply</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <label class="form-label text-muted small" id="cust-milk-rate-label">Milk Rate (₹/L) *</label>
+              <input type="number" step="0.01" min="0.01" id="cust-milk-rate" class="form-control form-dairy-control" required>
+              <small class="text-dim">Rate of the customer's usual product. Other products: Custom Pricing.</small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small">Customer Code</label>
+              <input type="text" id="cust-code" class="form-control form-dairy-control" placeholder="Auto-generated if blank">
+            </div>
+          </div>
+
+          <h6 class="fw-bold text-muted small text-uppercase mb-2">Delivery</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-md-5">
+              <label class="form-label text-muted small">Route</label>
+              <select id="cust-route" class="form-select form-dairy-control"></select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label text-muted small">Delivery Boy</label>
+              <select id="cust-driver" class="form-select form-dairy-control"></select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label text-muted small">Stop #</label>
+              <input type="number" min="1" id="cust-stop" class="form-control form-dairy-control" value="1">
+            </div>
+          </div>
+
+          <h6 class="fw-bold text-muted small text-uppercase mb-2">Credit</h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label text-muted small">Credit Limit (₹)</label>
+              <input type="number" id="cust-credit-limit" class="form-control form-dairy-control" value="50000" min="0" step="1000">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted small">Credit Days</label>
+              <input type="number" id="cust-credit-days" class="form-control form-dairy-control" value="7" min="0">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="cust-active" checked>
+                <label class="form-check-label" for="cust-active">Active customer</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer dairy-modal-footer">
+          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dairy-primary" id="cust-save-btn">Save Customer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Delivery Boys -->
+<div class="modal fade" id="modalDrivers" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <h5 class="modal-title fw-bold">Delivery Boys</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <form id="form-driver" class="glass-panel-subtle p-3 mb-3">
+          <input type="hidden" id="driver-id">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label text-muted small mb-1">Name *</label>
+              <input type="text" id="driver-name" class="form-control form-control-sm form-dairy-control" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label text-muted small mb-1">Mobile (Login ID) *</label>
+              <input type="tel" id="driver-phone" class="form-control form-control-sm form-dairy-control" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label text-muted small mb-1" id="driver-password-label">Password *</label>
+              <input type="text" id="driver-password" class="form-control form-control-sm form-dairy-control" autocomplete="new-password" placeholder="Min. 6 characters">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+              <button type="submit" class="btn btn-sm btn-dairy-primary flex-grow-1" id="driver-save-btn">Add</button>
+              <button type="button" class="btn btn-sm btn-dairy-secondary d-none" id="driver-cancel-btn" onclick="resetDriverForm()">Cancel</button>
+            </div>
+          </div>
+        </form>
+        <div class="table-responsive">
+          <table class="table-dairy">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Mobile</th>
+                <th>Customers</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="drivers-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Record Milk Collection -->
+<div class="modal fade" id="modalProcurement" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <h5 class="modal-title fw-bold">Record Milk Collection</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-procurement">
+        <div class="modal-body p-4">
+          <div class="mb-3">
+            <label class="form-label text-muted small">Farmer / Vendor *</label>
+            <select id="proc-vendor" class="form-select form-dairy-control" required></select>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label text-muted small">Milk Type</label>
+              <select id="proc-milk-type" class="form-select form-dairy-control">
+                <option value="cow">Cow</option>
+                <option value="buffalo">Buffalo</option>
+                <option value="mixed">Mixed</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label text-muted small">Shift</label>
+              <select id="proc-shift" class="form-select form-dairy-control">
+                <option value="Morning">Morning</option>
+                <option value="Evening">Evening</option>
+              </select>
+            </div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-4">
+              <label class="form-label text-muted small">Quantity (L) *</label>
+              <input type="number" step="0.5" min="0.5" id="proc-qty" class="form-control form-dairy-control" required>
+            </div>
+            <div class="col-4">
+              <label class="form-label text-muted small">Fat % *</label>
+              <input type="number" step="0.1" min="0" max="15" id="proc-fat" class="form-control form-dairy-control" required>
+            </div>
+            <div class="col-4">
+              <label class="form-label text-muted small">SNF % *</label>
+              <input type="number" step="0.1" min="0" max="15" id="proc-snf" class="form-control form-dairy-control" required>
+            </div>
+          </div>
+          <div class="alert alert-info py-2 small mb-0">
+            Rate per litre is calculated from Fat % and SNF %. Milk with Fat below 3.2% or SNF below 8.0% is marked rejected.
+          </div>
+        </div>
+        <div class="modal-footer dairy-modal-footer">
+          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dairy-primary">Save Collection</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Order Details -->
+<div class="modal fade" id="modalOrderItems" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <div>
+          <h5 class="modal-title fw-bold" id="order-items-title">Order</h5>
+          <small class="text-muted" id="order-items-subtitle"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="table-responsive">
+          <table class="table-dairy">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th class="text-end">Quantity</th>
+                <th class="text-end">Rate (₹)</th>
+                <th class="text-end">Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody id="order-items-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer dairy-modal-footer">
+        <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Dairy & Bank Details (printed on bills) -->
+<div class="modal fade" id="modalBusinessSettings" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <h5 class="modal-title fw-bold">Dairy Settings</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-business-settings">
+        <div class="modal-body p-4">
+          <p class="text-muted small">Dairy and bank details are printed on every bill.</p>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Dairy Name *</label>
+              <input type="text" id="bs-business_name" class="form-control form-dairy-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Contact Numbers</label>
+              <input type="text" id="bs-contact_numbers" class="form-control form-dairy-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Contact Email</label>
+              <input type="email" id="bs-contact_email" class="form-control form-dairy-control" placeholder="info@yourdairy.com">
+              <small class="text-dim">Shown on the Privacy Policy and Terms pages (needed for the Play Store).</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Account Name</label>
+              <input type="text" id="bs-bank_account_name" class="form-control form-dairy-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Bank Name</label>
+              <input type="text" id="bs-bank_name" class="form-control form-dairy-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Account Number</label>
+              <input type="text" id="bs-bank_account_number" class="form-control form-dairy-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">IFSC Code</label>
+              <input type="text" id="bs-bank_ifsc" class="form-control form-dairy-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Bank Branch</label>
+              <input type="text" id="bs-bank_branch" class="form-control form-dairy-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Google Pay / PhonePe Number</label>
+              <input type="text" id="bs-upi_number" class="form-control form-dairy-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Customer order cut-off time</label>
+              <input type="time" id="bs-order_cutoff_time" class="form-control form-dairy-control" required>
+              <small class="text-dim">Customers can order for a day until this time on the evening before. Once placed, an order cannot be changed by the customer.</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Automatic dispatch time</label>
+              <input type="time" id="bs-dispatch_time" class="form-control form-dairy-control" required>
+              <small class="text-dim">On the delivery day, confirmed orders go to the delivery boys at this time (e.g. 04:00).</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">GSTIN (optional)</label>
+              <input type="text" id="bs-gstin" class="form-control form-dairy-control" maxlength="15">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted small">Address (shown on bills and the Privacy / Terms pages)</label>
+              <input type="text" id="bs-address" class="form-control form-dairy-control">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer dairy-modal-footer">
+          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dairy-primary">Save Details</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Record Payment against a bill -->
+<div class="modal fade" id="modalBillPayment" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <div>
+          <h5 class="modal-title fw-bold">Record Payment</h5>
+          <small class="text-muted" id="pay-bill-info"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-bill-payment">
+        <div class="modal-body p-4">
+          <input type="hidden" id="pay-bill-id">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label text-muted small">Amount (₹) *</label>
+              <input type="number" step="0.01" min="0.01" id="pay-amount" class="form-control form-dairy-control" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label text-muted small">Date</label>
+              <input type="date" id="pay-date" class="form-control form-dairy-control">
+            </div>
+            <div class="col-6">
+              <label class="form-label text-muted small">Method</label>
+              <select id="pay-method" class="form-select form-dairy-control">
+                <option value="upi">UPI / GPay / PhonePe</option>
+                <option value="cash">Cash</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="cheque">Cheque</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label text-muted small">Reference (optional)</label>
+              <input type="text" id="pay-reference" class="form-control form-dairy-control">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer dairy-modal-footer">
+          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dairy-primary">Save Payment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Customer App Login -->
+<div class="modal fade" id="modalCustomerLogin" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <div>
+          <h5 class="modal-title fw-bold"><i class="bi bi-key me-1"></i> Customer App Login</h5>
+          <small class="text-muted" id="cl-customer-name"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-customer-login">
+        <div class="modal-body p-4">
+          <input type="hidden" id="cl-customer-id">
+          <div class="alert py-2 small" id="cl-status"></div>
+          <div class="mb-3">
+            <label class="form-label text-muted small">Login ID (customer's mobile number)</label>
+            <input type="text" id="cl-login-id" class="form-control form-dairy-control" disabled>
+            <small class="text-dim">To change it, edit the customer's mobile number.</small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted small" id="cl-password-label">Password *</label>
+            <div class="input-group">
+              <input type="text" id="cl-password" class="form-control form-dairy-control" autocomplete="new-password" placeholder="Min. 6 characters">
+              <button type="button" class="btn btn-dairy-secondary" onclick="suggestCustomerPassword()" title="Suggest a password">
+                <i class="bi bi-magic"></i> Suggest
+              </button>
+            </div>
+            <small class="text-dim" id="cl-password-hint"></small>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="cl-active" checked>
+            <label class="form-check-label" for="cl-active">Login enabled (customer can use the app)</label>
+          </div>
+        </div>
+        <div class="modal-footer dairy-modal-footer">
+          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dairy-primary" id="cl-save-btn">Create Login</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Review Claim -->
+<div class="modal fade" id="modalClaim" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <div>
+          <h5 class="modal-title fw-bold" id="claim-title">Claim</h5>
+          <small class="text-muted" id="claim-subtitle"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <h6 class="fw-bold text-muted small text-uppercase">Customer's claim</h6>
+            <div id="claim-info" class="mb-3"></div>
+            <div class="d-flex flex-wrap gap-2" id="claim-photos"></div>
+          </div>
+          <div class="col-lg-6">
+            <h6 class="fw-bold text-muted small text-uppercase">Delivery record</h6>
+            <div id="claim-delivery"></div>
+          </div>
+        </div>
+        <hr>
+        <div id="claim-decision"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Change Password -->
+<div class="modal fade" id="modalChangePassword" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <h5 class="modal-title fw-bold">Change Password</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-change-password">
+        <div class="modal-body p-4">
+          <div class="mb-3">
+            <label class="form-label text-muted small">Current Password</label>
+            <input type="password" id="cp-current" class="form-control form-dairy-control" autocomplete="current-password" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted small">New Password</label>
+            <input type="password" id="cp-new" class="form-control form-dairy-control" autocomplete="new-password" minlength="6" required>
+          </div>
+          <div>
+            <label class="form-label text-muted small">Confirm New Password</label>
+            <input type="password" id="cp-confirm" class="form-control form-dairy-control" autocomplete="new-password" minlength="6" required>
+          </div>
+        </div>
+        <div class="modal-footer dairy-modal-footer">
+          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dairy-primary">Change Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap 5 JS -->
+<script>window.DAIRY_APP = 'admin';</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Central API & App JS -->
+<script src="/frontend/js/api.js?v=20261018b"></script>
+<script src="/frontend/js/app.js?v=20261018b"></script>
+</body>
+</html>

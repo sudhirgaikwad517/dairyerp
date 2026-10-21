@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0b2545">
+  <title>Delivery App | Akash Dairy Farm</title>
+  <link rel="icon" type="image/svg+xml" href="/frontend/assets/logo.svg">
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261018b">
+  <style>
+    body { padding-bottom: 32px; }
+    .drv-wrap { max-width: 600px; }
+    .progress-card { border-radius: 18px; padding: 16px; }
+    .progress-card .big { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-main); }
+    .progress-thin { height: 8px; border-radius: 99px; background: #e2e8f0; }
+    .progress-thin .progress-bar { background: linear-gradient(90deg, #12a15b, #34d399); border-radius: 99px; }
+
+    .stop-card { background: #fff; border: 1px solid var(--border-glass); border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow-card); }
+    .stop-card.done { background: #fbfefc; }
+    .stop-no { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.9rem; background: #e0f2fe; color: #075985; }
+    .stop-card.done .stop-no { background: #dcfce7; color: #166534; }
+    .stop-card.short .stop-no { background: #fef3c7; color: #92400e; }
+    .stop-card.missed .stop-no { background: #ffe4e6; color: #be123c; }
+    .stop-name { font-weight: 800; font-size: 1.02rem; color: var(--text-main); line-height: 1.25; }
+    .stop-addr { font-size: 0.82rem; color: var(--text-muted); }
+    .qty-row { display: flex; gap: 8px; margin: 12px 0; }
+    .qty-box { flex: 1; background: #f8fafc; border: 1px solid var(--border-glass); border-radius: 12px; padding: 8px 10px; }
+    .qty-box .ql { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .qty-box .qv { font-size: 1.05rem; font-weight: 800; color: var(--text-main); }
+    .stop-actions { display: flex; gap: 8px; }
+    .stop-actions .btn { border-radius: 11px; font-weight: 700; padding: 9px 10px; font-size: 0.92rem; }
+    .btn-icon-only { width: 44px; flex-shrink: 0; }
+
+    .sig-canvas-container { background: #f8fafc; border: 2px dashed var(--border-light); border-radius: 12px; touch-action: none; }
+    #signaturePad { display: block; width: 100%; max-width: 340px; height: auto; margin: 0 auto; }
+    .qty-stepper .btn { width: 52px; font-size: 1.3rem; font-weight: 800; }
+    .qty-stepper input { text-align: center; font-size: 1.5rem; font-weight: 800; }
+    .exec-head { background: linear-gradient(135deg, #0b2545, #13406b); color: #fff; border-radius: 16px 16px 0 0; padding: 16px 18px; }
+    .exec-head .eh-name { font-weight: 800; font-size: 1.1rem; }
+    .exec-head .eh-meta { font-size: 0.8rem; color: rgba(255, 255, 255, 0.75); }
+    .exec-head .btn-close { filter: invert(1) grayscale(1) brightness(2); }
+    .field-label { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
+    .item-row { border: 1px solid var(--border-glass); border-radius: 12px; padding: 10px; margin-bottom: 8px; background: #fff; }
+    .item-row.short { border-color: #fed7aa; background: #fff7ed; }
+    .item-row .item-name { font-weight: 800; color: var(--text-main); }
+    .item-row .item-ordered { font-size: 0.78rem; color: var(--text-muted); }
+    .item-lines { font-size: 0.85rem; margin: 10px 0; }
+    .item-lines div { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed #e2e8f0; }
+  </style>
+</head>
+<body class="light-page">
+
+  <!-- Brand bar + route -->
+  <header class="app-topbar">
+    <div class="drv-wrap mx-auto">
+      <div class="d-flex align-items-center gap-2">
+        <img src="/frontend/assets/logo.svg" class="brand-logo sm" alt="Akash Dairy Farm logo">
+        <div class="flex-grow-1">
+          <div class="tb-brand">Akash Dairy Farm</div>
+          <div class="tb-sub">Delivery App</div>
+        </div>
+        <button class="tb-btn border-0" type="button" onclick="loadDriverDeliveries(true)" title="Refresh" aria-label="Refresh">
+          <i class="bi bi-arrow-clockwise" id="refresh-icon"></i>
+        </button>
+        <button class="tb-btn border-0" type="button" onclick="driverLogout()" title="Log out" aria-label="Log out">
+          <i class="bi bi-box-arrow-right"></i>
+        </button>
+      </div>
+      <div class="tb-hello">
+        <div class="tb-label" id="driver-greeting">Hello</div>
+        <div class="tb-title" id="route-name">Loading route...</div>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <span class="tb-chip"><i class="bi bi-calendar3"></i> <span id="trip-date-badge">Today</span></span>
+          <span class="tb-chip d-none" id="trip-badge-wrap"><i class="bi bi-truck"></i> <span id="trip-badge-info"></span></span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="drv-wrap mx-auto px-3 app-overlap">
+    <!-- Today's automatic dispatch / hold from the dairy -->
+    <div id="dispatch-banner"></div>
+    <!-- Progress -->
+    <div class="glass-panel progress-card mb-3">
+      <div class="d-flex justify-content-between align-items-end mb-2">
+        <div>
+          <div class="text-muted small fw-bold">Stops done</div>
+          <div class="big"><span id="pg-done">0</span><span class="text-muted fs-6 fw-bold"> / <span id="pg-total">0</span></span></div>
+        </div>
+        <span class="pill pill-blue" id="pg-percent">0%</span>
+      </div>
+      <div class="progress progress-thin mb-3"><div class="progress-bar" id="pg-bar" style="width: 0%"></div></div>
+      <div class="row g-2">
+        <div class="col-4"><div class="stat-tile"><div class="st-label">Total load</div><div class="st-value" id="pg-loaded">0 L</div></div></div>
+        <div class="col-4"><div class="stat-tile"><div class="st-label">Delivered</div><div class="st-value text-success" id="pg-delivered">0 L</div></div></div>
+        <div class="col-4"><div class="stat-tile"><div class="st-label">Cash / UPI</div><div class="st-value" id="pg-collected">₹0</div></div></div>
+      </div>
+    </div>
+
+    <!-- Problem on the way: customers still waiting are told -->
+    <div id="issue-box" class="mb-3 d-none">
+      <button class="btn btn-outline-danger w-100 fw-bold" style="border-radius: 12px;" onclick="openProblemModal()">
+        <i class="bi bi-exclamation-octagon me-1"></i> Report a problem on the way
+      </button>
+      <div id="issue-list" class="small mt-2"></div>
+    </div>
+
+    <!-- Filter -->
+    <div class="seg mb-3" id="stop-filter">
+      <button type="button" class="active" data-filter="pending">Pending <span id="cnt-pending">0</span></button>
+      <button type="button" data-filter="done">Done <span id="cnt-done">0</span></button>
+      <button type="button" data-filter="all">All <span id="cnt-all">0</span></button>
+    </div>
+
+    <!-- Stops -->
+    <div id="driver-stops-list">
+      <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div class="text-muted small mt-2">Loading your deliveries...</div>
+      </div>
+    </div>
+
+    <div class="app-footer-note">Akash Dairy Farm • Delivery App<br><a class="dev-credit" href="/privacy" target="_blank">Privacy Policy</a> · <a class="dev-credit" href="/terms" target="_blank">Terms</a><br><a class="dev-credit" href="https://www.prowexa.com" target="_blank" rel="noopener">Design Developed By <b>Prowexa Technologies Pvt. Ltd</b></a></div>
+  </main>
+
+  <!-- Delivery entry: quantity, photo, signature, payment -->
+  <div class="modal fade" id="modalDeliveryExec" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+      <div class="modal-content border-0" style="border-radius: 16px;">
+        <div class="exec-head d-flex justify-content-between align-items-start">
+          <div>
+            <div class="eh-meta" id="exec-stop-label">Stop</div>
+            <div class="eh-name" id="exec-customer-name"></div>
+            <div class="eh-meta">Ordered: <strong class="text-reset" id="exec-ordered-litres"></strong></div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="form-delivery-exec" class="d-flex flex-column flex-grow-1" style="min-height: 0;">
+          <div class="modal-body p-3 p-sm-4">
+            <input type="hidden" id="exec-delivery-id">
+
+            <!-- Delivered quantity, per product -->
+            <div class="mb-3">
+              <div class="field-label">Delivered</div>
+              <div id="exec-items"></div>
+              <div class="d-flex gap-2 mt-2">
+                <button type="button" class="btn btn-sm btn-outline-success flex-grow-1" onclick="setQtyFull()"><i class="bi bi-check2-all me-1"></i>Full order</button>
+                <button type="button" class="btn btn-sm btn-outline-danger flex-grow-1" onclick="setQtyZero()"><i class="bi bi-x-circle me-1"></i>Nothing delivered</button>
+              </div>
+            </div>
+
+            <!-- Shortage: only when less than ordered -->
+            <div class="mb-3 p-3 rounded-3 d-none" id="exec-short-box" style="background:#fff7ed; border:1px solid #fed7aa;">
+              <div class="field-label text-warning-emphasis" id="exec-short-label">Short delivery</div>
+              <select id="exec-shortage-reason" class="form-select form-dairy-control mb-2">
+                <option value="none">Select reason</option>
+                <option value="leakage">Leakage in transit</option>
+                <option value="damage">Damaged pouch / can</option>
+                <option value="customer_rejection">Customer rejected / not needed</option>
+                <option value="stock_shortage">Not enough milk in vehicle</option>
+                <option value="delivery_issue">Other delivery issue</option>
+              </select>
+              <input type="text" id="exec-shortage-notes" class="form-control form-dairy-control" placeholder="Note (optional)">
+            </div>
+
+            <div class="mb-3">
+              <div class="field-label">Handed over to (optional)</div>
+              <input type="text" id="exec-recipient-name" class="form-control form-dairy-control" placeholder="Name of the person who took the milk">
+            </div>
+
+            <!-- Proof of delivery photo -->
+            <div class="mb-3">
+              <label class="field-label d-block" for="exec-photo">Delivery photo <span class="text-danger">*</span></label>
+              <input type="file" id="exec-photo" class="form-control form-dairy-control" accept="image/*" capture="environment">
+              <small class="text-muted d-block mt-1" id="exec-photo-hint">Take a photo of the milk handed over at the customer's place.</small>
+              <img id="exec-photo-preview" class="d-none mt-2 rounded-3 border" style="max-width: 100%; max-height: 180px;" alt="Delivery photo preview">
+            </div>
+
+            <!-- Customer signature -->
+            <div class="mb-3" id="exec-sign-box">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="field-label mb-0">Customer signature <span class="text-danger" id="exec-sign-star">*</span></div>
+                <button type="button" class="btn btn-link btn-sm text-danger p-0 text-decoration-none" onclick="clearSignature()">Clear</button>
+              </div>
+              <div class="sig-canvas-container text-center">
+                <canvas id="signaturePad" width="340" height="130"></canvas>
+              </div>
+              <small class="text-muted" id="exec-sign-hint">Customer signs here with a finger.</small>
+            </div>
+
+            <!-- Payment collected -->
+            <div class="p-3 glass-panel-subtle">
+              <div class="field-label">Payment collected (optional)</div>
+              <div class="row g-2">
+                <div class="col-7">
+                  <div class="input-group">
+                    <span class="input-group-text">₹</span>
+                    <input type="number" step="1" min="0" id="exec-collected-amount" class="form-control form-dairy-control" placeholder="0" inputmode="decimal">
+                  </div>
+                </div>
+                <div class="col-5">
+                  <select id="exec-payment-method" class="form-select form-dairy-control">
+                    <option value="cash">Cash</option>
+                    <option value="upi">UPI</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer border-0 pt-0 px-3 px-sm-4 pb-3">
+            <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-dairy-primary flex-grow-1 py-2 fw-bold" id="exec-submit">
+              <i class="bi bi-check-circle-fill me-1"></i> Confirm Delivery
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Problem on the way -->
+  <div class="modal fade" id="modalProblem" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0" style="border-radius: 16px;">
+        <div class="exec-head d-flex justify-content-between align-items-start">
+          <div>
+            <div class="eh-meta">Customers still waiting will get a notice that their milk is late</div>
+            <div class="eh-name">Report a problem</div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-3">
+          <div class="field-label">What happened? <span class="text-danger">*</span></div>
+          <select id="problem-reason" class="form-select form-dairy-control mb-3">
+            <option value="">Select the problem</option>
+            <option value="vehicle_breakdown">Vehicle breakdown</option>
+            <option value="traffic">Heavy traffic / road blocked</option>
+            <option value="weather">Bad weather</option>
+            <option value="milk_shortage">Not enough milk in the vehicle</option>
+            <option value="accident">Accident</option>
+            <option value="other">Other problem</option>
+          </select>
+          <div class="field-label">Details <span class="text-muted fw-normal">(customers see this)</span></div>
+          <textarea id="problem-note" class="form-control form-dairy-control" rows="2" maxlength="200"
+            placeholder="e.g. Tyre puncture, milk will reach by 9 AM"></textarea>
+          <div class="small text-muted mt-2" id="problem-count"></div>
+        </div>
+        <div class="modal-footer border-0 pt-0 px-3 pb-3">
+          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger flex-grow-1 fw-bold" id="problem-send" onclick="sendProblem()">
+            <i class="bi bi-send me-1"></i> Send to customers &amp; dairy
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div class="app-toast" id="app-toast"></div>
+
+  <!-- Bootstrap 5 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Central API & Driver JS -->
+  <script>window.DAIRY_APP = 'driver';</script>
+  <script src="/frontend/js/api.js?v=20261018b"></script>
+  <script src="/frontend/js/driver.js?v=20261018b"></script>
+</body>
+</html>
