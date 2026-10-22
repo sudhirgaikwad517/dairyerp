@@ -271,9 +271,10 @@ class DayItem {
   final double rate;
   final double amount;
   final double? deliveredQuantity;
+  final double litres; // milk in this line (500 pouches of 500 ML = 250 L); 0 for non-milk
 
   DayItem({required this.productId, required this.productName, required this.unit, required this.quantity, required this.rate,
-      double? amount, this.deliveredQuantity})
+      double? amount, this.deliveredQuantity, this.litres = 0})
       : amount = amount ?? quantity * rate;
 
   factory DayItem.fromJson(Map<String, dynamic> json) => DayItem(
@@ -284,6 +285,7 @@ class DayItem {
         rate: _num(json['rate']),
         amount: json['amount'] == null ? null : _num(json['amount']),
         deliveredQuantity: json['delivered_quantity'] == null ? null : _num(json['delivered_quantity']),
+        litres: _num(json['litres']),
       );
 }
 
@@ -302,6 +304,7 @@ class DayPlan {
   final List<DayItem> items;
   final double totalQty;
   final double totalAmount;
+  final double totalLitres;
   final String source; // order | none
   final String status;
   final bool editable; // the customer can still place / change / cancel (till the cut-off)
@@ -316,6 +319,7 @@ class DayPlan {
     required this.items,
     required this.totalQty,
     required this.totalAmount,
+    this.totalLitres = 0,
     required this.source,
     required this.status,
     required this.editable,
@@ -364,6 +368,7 @@ class DayPlan {
         items: ((json['items'] as List?) ?? []).map((i) => DayItem.fromJson(i)).toList(),
         totalQty: _num(json['total_qty']),
         totalAmount: _num(json['total_amount']),
+        totalLitres: _num(json['total_litres']),
         source: json['source'] ?? 'none',
         status: json['status'] ?? '',
         editable: json['editable'] == true,

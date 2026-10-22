@@ -14,14 +14,16 @@ import '../../widgets/floating_nav_bar.dart';
 
 /// One day's orders, customer-wise: quantity x rate = amount, and the day's total.
 class AdminOrdersScreen extends StatefulWidget {
-  const AdminOrdersScreen({super.key});
+  final DateTime? initialDay;
+
+  const AdminOrdersScreen({super.key, this.initialDay});
 
   @override
   State<AdminOrdersScreen> createState() => _AdminOrdersScreenState();
 }
 
 class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
-  DateTime _day = dateOnly(DateTime.now());
+  late DateTime _day = dateOnly(widget.initialDay ?? DateTime.now());
   DaySummary? _summary;
   List<AdminOrder> _orders = [];
   String? _error;
@@ -105,6 +107,10 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
             else ...[
               _summaryBar(),
               if (_summary!.products.isNotEmpty) ...[const SizedBox(height: 12), _productsCard(_summary!.products)],
+              if (_summary!.notOrdered.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                NotOrderedRow(names: _summary!.notOrdered, when: dayLabel(_day).contains(',') ? 'on ${dayLabel(_day)}' : dayLabel(_day).toLowerCase()),
+              ],
               if (_summary!.dispatch != null) ...[const SizedBox(height: 12), _dispatchCard(_summary!.dispatch!)],
               const SizedBox(height: 12),
               TextField(
@@ -117,10 +123,6 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
               else ...[
                 for (final o in visible) ...[_orderCard(o), const SizedBox(height: 10)],
                 _totalCard(active.length, totalL, totalAmt),
-              ],
-              if (_summary!.notOrdered.isNotEmpty) ...[
-                const SectionHeader('No order from'),
-                Text(_summary!.notOrdered.join(', '), style: const TextStyle(color: AppTheme.textMuted, height: 1.4)),
               ],
             ],
           ],
@@ -330,11 +332,11 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
     );
   }
 
-  /// Day's quantity per product, one line each.
+  /// Day's quantity per product (sizes together), the first few; the rest in a sheet.
   Widget _productsCard(List<DayProductTotal> products) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -342,18 +344,8 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
               'PRODUCTS',
               style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: AppTheme.textMuted, letterSpacing: 0.6),
             ),
-            const SizedBox(height: 6),
-            for (final p in products)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(p.name, style: const TextStyle(fontSize: 13.5))),
-                    const SizedBox(width: 8),
-                    Text(qtyUnit(p.quantity, p.unit), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 2),
+            ProductBreakdown(products: products, limit: 4),
           ],
         ),
       ),

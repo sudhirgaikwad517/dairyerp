@@ -8,15 +8,23 @@ List<int> _ids(dynamic v) => ((v as List?) ?? const []).map((e) => (e as num).to
 /// One product's total for a delivery day.
 class DayProductTotal {
   final String name;
+  final String group; // 'Cow Milk Brand Pouch': sizes of one product share it
+  final String variant; // '500 ML', empty for a product without sizes
   final String unit;
   final double quantity;
+  final double litres;
   final double amount;
+  final int customers;
 
   DayProductTotal.fromJson(Map<String, dynamic> j)
       : name = j['product_name'] as String? ?? '',
+        group = (j['group_name'] as String?)?.isNotEmpty == true ? j['group_name'] as String : j['product_name'] as String? ?? '',
+        variant = j['variant_name'] as String? ?? '',
         unit = j['unit'] as String? ?? '',
         quantity = _d(j['quantity']),
-        amount = _d(j['amount']);
+        litres = _d(j['litres']),
+        amount = _d(j['amount']),
+        customers = (j['customers'] as num? ?? 0).toInt();
 }
 
 /// One product line of an order (admin view).
@@ -53,7 +61,6 @@ class DaySummary {
   final DateTime? orderDeadline;
   final bool customersCanOrder;
   final DispatchInfo? dispatch;
-  final String productsText; // 'Cow Milk 120 L • Paneer 3.5 kg' when more than one product
   final List<DayProductTotal> products;
 
   DaySummary.fromJson(Map<String, dynamic> j)
@@ -69,9 +76,6 @@ class DaySummary {
         orderDeadline = DateTime.tryParse(j['order_deadline'] as String? ?? ''),
         customersCanOrder = j['customers_can_order'] as bool? ?? false,
         dispatch = j['dispatch'] == null ? null : DispatchInfo.fromJson(j['dispatch'] as Map<String, dynamic>),
-        productsText = ((j['products'] as List?) ?? const []).length > 1
-            ? (j['products'] as List).map((p) => '${p['product_name']} ${_fmt(p['quantity'])} ${p['unit']}').join(' • ')
-            : '',
         products = ((j['products'] as List?) ?? const []).map((p) => DayProductTotal.fromJson(p as Map<String, dynamic>)).toList();
 
   int get delivered => statusCounts['delivered'] ?? 0;
@@ -350,10 +354,4 @@ class AdminClaim {
     if (settlement == 'credit_note' || settlement == 'bill') return 'Deducted from bill';
     return 'To be deducted in next bill';
   }
-}
-
-
-String _fmt(dynamic v) {
-  final d = (v as num?)?.toDouble() ?? 0.0;
-  return d == d.roundToDouble() ? d.toStringAsFixed(0) : d.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '');
 }

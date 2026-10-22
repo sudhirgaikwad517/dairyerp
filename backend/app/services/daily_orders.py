@@ -15,7 +15,7 @@ from backend.app.models.entities import (
     BusinessProfile, Customer, Delivery, DeliveryRoute, DeliveryTrip, Order, OrderItem, Product, Vehicle
 )
 from backend.app.services import notifications
-from backend.app.services.order_lines import order_what, whole_unit
+from backend.app.services.order_lines import litres_per_unit, order_what, whole_unit
 from backend.app.services.order_pricing import fill_order_items
 
 EDITABLE_STATUSES = ("created", "confirmed")
@@ -71,7 +71,8 @@ def _order_items(db: Session, order: Order) -> List[Dict]:
         p = db.query(Product).filter(Product.id == i.product_id).first()
         out.append({"product_id": i.product_id, "product_name": p.product_name if p else "Product",
                     "unit": p.unit if p else "L", "quantity": i.ordered_quantity, "rate": i.unit_price,
-                    "amount": i.total_amount, "delivered_quantity": i.delivered_quantity})
+                    "amount": i.total_amount, "delivered_quantity": i.delivered_quantity,
+                    "litres": round((i.ordered_quantity or 0) * litres_per_unit(p), 3)})
     return out
 
 
@@ -109,6 +110,7 @@ def customer_days(db: Session, customer: Customer, start: date, days: int) -> Li
             "items": items,
             "total_qty": round(sum(i["quantity"] for i in items), 2),
             "total_amount": round(sum(i["amount"] for i in items), 2),
+            "total_litres": round(sum(i["litres"] for i in items), 3),
             "source": "order" if order_active else "none",
             "status": status,
             "order_number": order.order_number if order_active else None,

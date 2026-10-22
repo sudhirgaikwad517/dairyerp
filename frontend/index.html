@@ -12,7 +12,7 @@
   <!-- Bootstrap Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <!-- Custom Design System -->
-  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261022d">
+  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261022e">
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 </head>
@@ -438,35 +438,40 @@
         </div>
 
         <div class="glass-panel p-3 mb-3">
-          <div class="fw-bold mb-2">Standard B2B price</div>
-          <div id="standard-prices" class="d-flex flex-wrap gap-3"></div>
-        </div>
-
-        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
-          <input type="search" id="pricing-search" class="form-control form-dairy-control" style="max-width: 260px;" placeholder="Search customer...">
-          <div class="form-check ms-1">
-            <input class="form-check-input" type="checkbox" id="pricing-custom-only">
-            <label class="form-check-label small" for="pricing-custom-only">Only customers with their own rate</label>
+          <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-2">
+            <div class="fw-bold">Standard B2B prices</div>
+            <small class="text-muted">Click a product to see or change the price of its sizes</small>
           </div>
+          <div id="standard-prices" class="d-flex flex-wrap gap-2"></div>
         </div>
 
-        <div class="glass-panel overflow-hidden">
+        <div class="glass-panel p-3">
+          <div class="pricing-filters mb-3">
+            <input type="search" id="pricing-search" class="form-control form-dairy-control" placeholder="Search customer or code...">
+            <select id="pricing-product" class="form-select form-dairy-control" title="Product">
+              <option value="">All products</option>
+            </select>
+            <select id="pricing-filter" class="form-select form-dairy-control" title="Rate">
+              <option value="">All customers</option>
+              <option value="own">With their own rate</option>
+              <option value="standard">On the standard price</option>
+            </select>
+            <span class="small text-muted ms-md-auto" id="pricing-count"></span>
+          </div>
           <div class="table-responsive">
             <table class="table-dairy">
               <thead>
                 <tr>
-                  <th>Customer Name</th>
-                  <th>Product</th>
-                  <th class="text-end">Standard Price</th>
-                  <th class="text-end">Customer Rate</th>
-                  <th>Difference</th>
+                  <th>Customer</th>
+                  <th id="pricing-rates-head">Own rates</th>
                   <th>Rate Since</th>
-                  <th>Action</th>
+                  <th class="text-end">Action</th>
                 </tr>
               </thead>
               <tbody id="pricing-tbody"></tbody>
             </table>
           </div>
+          <div id="pricing-pager" class="dairy-pager mt-3"></div>
         </div>
       </section>
 
@@ -1388,33 +1393,68 @@
   </div>
 </div>
 
-<!-- Modal: Custom Price Modifier -->
-<div class="modal fade" id="modalCustomPrice" tabindex="-1">
+<!-- Modal: one customer's rates, every product size; blank = standard price -->
+<div class="modal fade" id="modalCustomerRates" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content dairy-modal">
+      <div class="modal-header dairy-modal-header">
+        <div>
+          <h5 class="modal-title fw-bold mb-0">Customer Rates</h5>
+          <small class="text-muted" id="rates-customer-name"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-customer-rates">
+        <div class="modal-body p-4">
+          <input type="search" id="rates-search" class="form-control form-dairy-control mb-3 d-none" placeholder="Search product...">
+          <div class="table-responsive">
+            <table class="table-dairy product-sizes-table mb-2">
+              <thead>
+                <tr>
+                  <th>Product / size</th>
+                  <th class="text-end">Standard</th>
+                  <th style="width: 150px;">Customer rate (₹)</th>
+                  <th>Difference</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="rates-tbody"></tbody>
+            </table>
+          </div>
+          <small class="text-dim">Leave a rate blank for the standard price. A change applies to this customer's orders that are not dispatched yet; delivered milk and bills keep their old rate.</small>
+        </div>
+        <div class="modal-footer dairy-modal-footer">
+          <span class="small text-muted me-auto" id="rates-changes"></span>
+          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dairy-primary" id="rates-save">Save Rates</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: standard price of one product's sizes -->
+<div class="modal fade" id="modalStandardPrices" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content dairy-modal">
       <div class="modal-header dairy-modal-header">
-        <h5 class="modal-title fw-bold">Set Customer Price</h5>
+        <div>
+          <h5 class="modal-title fw-bold mb-0">Standard Price</h5>
+          <small class="text-muted" id="std-group-name"></small>
+        </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <form id="form-custom-price">
+      <form id="form-standard-prices">
         <div class="modal-body p-4">
-          <input type="hidden" id="price-customer-id">
-          <p class="text-muted mb-3">Rate for <strong id="price-customer-name" class="text-body"></strong></p>
-          <div class="mb-3">
-            <label class="form-label text-muted small">Select Product</label>
-            <select id="price-product-select" class="form-select form-dairy-control"></select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label text-muted small">Customer Rate per Unit (₹)</label>
-            <input type="number" step="0.01" min="0.01" id="price-custom-input" class="form-control form-dairy-control" required>
-            <small class="text-dim" id="price-standard-hint"></small>
-          </div>
-          <small class="text-dim">Applies to this customer's orders that are not dispatched yet. Delivered milk keeps its old rate.</small>
+          <table class="table-dairy product-sizes-table mb-2">
+            <thead><tr><th>Size</th><th style="width: 170px;">Price (₹)</th><th>Own rates</th></tr></thead>
+            <tbody id="std-tbody"></tbody>
+          </table>
+          <small class="text-dim">Customers with their own rate are not affected. Upcoming orders that are not dispatched yet take the new price.</small>
         </div>
         <div class="modal-footer dairy-modal-footer">
-          <button type="button" class="btn btn-outline-secondary me-auto d-none" id="price-reset-btn">Use standard price</button>
           <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-dairy-primary">Save Rate</button>
+          <button type="submit" class="btn btn-dairy-primary">Save Prices</button>
         </div>
       </form>
     </div>
@@ -1974,7 +2014,7 @@
 <script>window.DAIRY_APP = 'admin';</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <!-- Central API & App JS -->
-<script src="/frontend/js/api.js?v=20261022d"></script>
-<script src="/frontend/js/app.js?v=20261022d"></script>
+<script src="/frontend/js/api.js?v=20261022e"></script>
+<script src="/frontend/js/app.js?v=20261022e"></script>
 </body>
 </html>

@@ -14,7 +14,7 @@ import '../../widgets/floating_nav_bar.dart';
 import '../notifications_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
-  final void Function(int tab) onOpenTab;
+  final void Function(int tab, {DateTime? day}) onOpenTab;
 
   const AdminHomeScreen({super.key, required this.onOpenTab});
 
@@ -110,10 +110,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                               _todayHero(t!),
                               const SizedBox(height: 12),
                               _kpis(t),
-                              if (t.notOrdered.isNotEmpty) ...[
-                                const SectionHeader('No order today'),
-                                _chips(t.notOrdered),
-                              ],
                               const SectionHeader('Tomorrow'),
                               _tomorrowCard(),
                               const SectionHeader('Quick Actions'),
@@ -277,47 +273,91 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
+  /// Tomorrow at a glance: milk, customers, amount, then the products (sizes together).
+  /// Same size for 1 or 200 customers: it shows totals, not names; the full list is on the Orders tab.
   Widget _tomorrowCard() {
     final t = _tomorrow;
     if (t == null) return const SizedBox.shrink();
+    final day = DateTime.parse(t.date);
+    final open = t.customersCanOrder;
+    final deadline = t.orderDeadline == null ? '' : DateFormat('h:mm a').format(t.orderDeadline!);
+    Widget stat(String value, String label) => Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.navy)),
+              ),
+              const SizedBox(height: 2),
+              Text(label, style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted)),
+            ],
+          ),
+        );
+    Widget divider() => Container(width: 1, height: 34, color: AppTheme.border, margin: const EdgeInsets.symmetric(horizontal: 12));
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => widget.onOpenTab(1, day: day),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
-                  Text('${qty(t.totalLitres)} L ordered',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.navy)),
-                  if (t.productsText.isNotEmpty)
-                    Text(t.productsText, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                  const SizedBox(height: 2),
-                  Text('${t.customersOrdered} of ${t.activeCustomers} customers • ${rupees(t.totalAmount)}',
-                      style: const TextStyle(fontSize: 13, color: AppTheme.textMuted)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(DateFormat('EEEE, dd MMM').format(day),
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textMain)),
+                        if (deadline.isNotEmpty)
+                          Text(open ? 'Customers can order till $deadline' : 'Orders closed at $deadline',
+                              style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                      ],
+                    ),
+                  ),
+                  StatusChip(open ? 'Still open' : 'Final', color: open ? AppTheme.warmAmber : AppTheme.freshGreen),
                 ],
               ),
-            ),
-            StatusChip(t.customersCanOrder ? 'Still open' : 'Final', color: t.customersCanOrder ? AppTheme.warmAmber : AppTheme.freshGreen),
-          ],
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  stat('${qty(t.totalLitres)} L', 'Milk'),
+                  divider(),
+                  stat('${t.customersOrdered}/${t.activeCustomers}', 'Customers'),
+                  divider(),
+                  stat(rupees(t.totalAmount), 'Amount'),
+                ],
+              ),
+              if (t.products.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                ProductBreakdown(products: t.products, limit: 3),
+              ] else
+                const Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: Text('No orders yet', style: TextStyle(fontSize: 13, color: AppTheme.textMuted)),
+                ),
+              const Divider(height: 1),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text("View tomorrow's orders",
+                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppTheme.primaryBlue)),
+                    ),
+                    Icon(Icons.chevron_right, size: 20, color: AppTheme.primaryBlue),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _chips(List<String> names) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final n in names)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.border)),
-            child: Text(n, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-          ),
-      ],
     );
   }
 

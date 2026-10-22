@@ -14,7 +14,7 @@ from backend.app.services.billing_service import bill_for_delivery_day, get_busi
 from backend.app.services.daily_orders import dispatch_day, order_deadline, set_day_quantity
 from backend.app.services.dispatch_control import (DISPATCH_LOCK, check_manual_dispatch, dispatch_status,
                                                     release_hold, set_hold)
-from backend.app.services.order_lines import describe, order_lines, order_what
+from backend.app.services.order_lines import describe, litres_per_unit, order_lines, order_what
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -148,9 +148,15 @@ def day_summary(day: Optional[str] = None, db: Session = Depends(get_db)):
     per_product = {}
     for rows in order_lines(db, active, products).values():
         for r in rows:
-            t = per_product.setdefault(r["product_id"], {"product_id": r["product_id"], "product_name": r["product_name"],
-                                                         "unit": r["unit"], "quantity": 0.0, "amount": 0.0, "customers": 0})
+            p = products.get(r["product_id"])
+            t = per_product.setdefault(r["product_id"], {
+                "product_id": r["product_id"], "product_name": r["product_name"], "unit": r["unit"],
+                # Sizes of one product (1 L, 500 ML) share a group name; the app shows them together
+                "group_name": (p.group_name if p and p.group_name else r["product_name"]),
+                "variant_name": (p.variant_name or "") if p else "",
+                "quantity": 0.0, "litres": 0.0, "amount": 0.0, "customers": 0})
             t["quantity"] = round(t["quantity"] + r["ordered"], 3)
+            t["litres"] = round(t["litres"] + r["ordered"] * litres_per_unit(p), 3)
             t["amount"] = round(t["amount"] + r["ordered_amount"], 2)
             t["customers"] += 1
     by_product = sorted(per_product.values(), key=lambda t: ((products[t["product_id"]].sort_order or 0) if t["product_id"] in products else 0, t["product_id"]))

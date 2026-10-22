@@ -26,9 +26,13 @@ class _AdminShellState extends State<AdminShell> {
   ];
 
   int _currentIndex = 0;
+  DateTime? _ordersDay; // the day the Orders tab opens on (null: today)
   DateTime? _lastBackOnHome;
 
-  void _openTab(int index) => setState(() => _currentIndex = index);
+  void _openTab(int index, {DateTime? day}) => setState(() {
+        _currentIndex = index;
+        _ordersDay = day;
+      });
 
   /// Android back: other tabs go to Home; on Home, press back twice to close the app.
   void _handleBack() {
@@ -51,7 +55,7 @@ class _AdminShellState extends State<AdminShell> {
   Widget build(BuildContext context) {
     final screens = [
       AdminHomeScreen(onOpenTab: _openTab),
-      const AdminOrdersScreen(),
+      AdminOrdersScreen(key: ValueKey(_ordersDay), initialDay: _ordersDay),
       const AdminDeliveryScreen(),
       const AdminBillsScreen(),
       const AdminMoreScreen(),

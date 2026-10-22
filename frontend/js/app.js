@@ -615,9 +615,36 @@ window.viewCustomerLedger = async function(customerId) {
   }
 };
 
-// 4. Customer Pricing
+// 4. Customer Pricing: one row per customer (not per product), filters and pages, so 200 customers
+// x 15 products stays readable. A customer's rates for every size are set in one popup.
 let pricingCache = [];
 let standardPrices = [];
+let pricingPage = 1;
+let pricingPageSize = 25;
+
+const money2 = (n) => '₹' + Number(n || 0).toFixed(2);
+const sizeLabel = (p) => p.variant_name || p.product_name;
+
+// Products with their sizes, in the order of the Products page
+function priceGroups(list) {
+  const groups = new Map();
+  list.forEach(p => {
+    const key = p.group_name || p.product_name;
+    if (!groups.has(key)) groups.set(key, { name: key, items: [] });
+    groups.get(key).items.push(p);
+  });
+  return [...groups.values()];
+}
+
+// Each customer with their rate rows
+function pricingCustomers() {
+  const map = new Map();
+  pricingCache.forEach(r => {
+    if (!map.has(r.customer_id)) map.set(r.customer_id, { id: r.customer_id, name: r.customer_name, code: r.customer_code, rows: [] });
+    map.get(r.customer_id).rows.push(r);
+  });
+  return [...map.values()];
+}
 
 async function loadPricingTable() {
   const tbody = document.getElementById('pricing-tbody');
@@ -625,122 +652,276 @@ async function loadPricingTable() {
   try {
     [pricingCache, standardPrices] = await Promise.all([DairyAPI.getCustomPricing(), DairyAPI.getStandardPrices()]);
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-danger">Could not load prices: ${esc(err.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="text-danger">Could not load prices: ${esc(err.message)}</td></tr>`;
     return;
   }
-  document.getElementById('standard-prices').innerHTML = standardPrices.length ? standardPrices.map(p => `
-    <div class="d-flex align-items-center gap-2">
-      <span>${esc(p.product_name)}</span>
-      <b class="text-success">₹${Number(p.standard_b2b_price).toFixed(2)}/${esc(p.unit)}</b>
-      <button class="btn btn-sm btn-outline-warning" onclick="editStandardPrice(${p.id})"><i class="bi bi-pencil me-1"></i>Change</button>
-    </div>`).join('') : '<span class="text-muted">No active products.</span>';
+  const groups = priceGroups(standardPrices);
+  const ownCount = (ids) => pricingCache.filter(r => r.is_custom && ids.includes(r.product_id)).length;
+  document.getElementById('standard-prices').innerHTML = groups.length ? groups.map((g, i) => {
+    const own = ownCount(g.items.map(p => p.id));
+    const meta = g.items.length > 1 ? `${g.items.length} sizes` : `${money2(g.items[0].standard_b2b_price)}/${esc(g.items[0].unit)}`;
+    return `<button type="button" class="price-group-chip" onclick="openStandardPrices(${i})">
+      <i class="bi bi-tag"></i>${esc(g.name)}<span class="chip-meta">${meta}${own ? ` • ${own} own rate${own === 1 ? '' : 's'}` : ''}</span>
+    </button>`;
+  }).join('') : '<span class="text-muted">No products on sale.</span>';
+
+  const select = document.getElementById('pricing-product');
+  const keep = select.value;
+  select.innerHTML = '<option value="">All products</option>' +
+    groups.map(g => `<option value="${esc(g.name)}">${esc(g.name)}</option>`).join('');
+  select.value = groups.some(g => g.name === keep) ? keep : '';
   renderPricingTable();
 }
 
 function renderPricingTable() {
   const tbody = document.getElementById('pricing-tbody');
   const term = document.getElementById('pricing-search').value.trim().toLowerCase();
-  const customOnly = document.getElementById('pricing-custom-only').checked;
-  const rows = pricingCache.filter(p =>
-    (!customOnly || p.is_custom) &&
-    (!term || p.customer_name.toLowerCase().includes(term) || (p.customer_code || '').toLowerCase().includes(term)));
-  if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No customers match.</td></tr>';
-    return;
-  }
+  const group = document.getElementById('pricing-product').value;
+  const filter = document.getElementById('pricing-filter').value;
+  document.getElementById('pricing-rates-head').innerText = group ? `${group} rates` : 'Own rates';
+
+  const list = pricingCustomers().map(c => {
+    const rows = group ? c.rows.filter(r => r.group_name === group) : c.rows;
+    return { ...c, rows, own: rows.filter(r => r.is_custom) };
+  }).filter(c =>
+    (!term || c.name.toLowerCase().includes(term) || (c.code || '').toLowerCase().includes(term)) &&
+    (filter !== 'own' || c.own.length) && (filter !== 'standard' || !c.own.length));
+
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total / pricingPageSize));
+  pricingPage = Math.min(Math.max(1, pricingPage), pages);
+  const from = (pricingPage - 1) * pricingPageSize;
+  const page = list.slice(from, from + pricingPageSize);
+  const customers = new Set(pricingCache.map(r => r.customer_id)).size;
+  const withOwn = new Set(pricingCache.filter(r => r.is_custom).map(r => r.customer_id)).size;
+  document.getElementById('pricing-count').innerText = `${customers} customers • ${withOwn} with their own rate`;
+
   const rateSince = (iso) => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-  const diff = (p) => {
-    if (!p.is_custom) return '<span class="badge bg-secondary-subtle text-secondary">Standard price</span>';
-    if (p.discount_per_unit > 0) return `<span class="badge bg-success-subtle text-success">₹${p.discount_per_unit.toFixed(2)}/${esc(p.unit)} less</span>`;
-    if (p.discount_per_unit < 0) return `<span class="badge bg-warning-subtle text-warning">₹${Math.abs(p.discount_per_unit).toFixed(2)}/${esc(p.unit)} more</span>`;
-    return '<span class="badge bg-secondary-subtle text-secondary">Own rate (same as standard)</span>';
+  const pill = (r, withName) => {
+    const diff = r.standard_b2b_price - r.custom_price;
+    const note = !r.is_custom ? 'standard' : diff > 0 ? `₹${diff.toFixed(2)} less` : diff < 0 ? `₹${Math.abs(diff).toFixed(2)} more` : 'same as standard';
+    return `<span class="rate-pill ${r.is_custom ? 'own' : ''}" title="${esc(r.product_name)}: ${note}">${esc(withName ? r.product_name : sizeLabel(r))} ${money2(r.custom_price)}</span>`;
   };
-  tbody.innerHTML = rows.map(p => `
+  const ratesCell = (c) => {
+    if (group) return c.rows.map(r => pill(r, false)).join('');
+    if (!c.own.length) return '<span class="text-muted small">Standard price for all products</span>';
+    const shown = c.own.slice(0, 3).map(r => pill(r, true)).join('');
+    return shown + (c.own.length > 3 ? `<span class="small text-muted">+${c.own.length - 3} more</span>` : '');
+  };
+  const since = (c) => {
+    const days = c.own.map(r => r.effective_from).filter(Boolean).sort();
+    return days.length ? rateSince(days[days.length - 1]) : '-';
+  };
+
+  tbody.innerHTML = page.length ? page.map(c => `
     <tr>
-      <td class="fw-bold">${esc(p.customer_name)}<br><small class="text-muted">${esc(p.customer_code)}</small></td>
-      <td>${esc(p.product_name)}</td>
-      <td class="text-end text-muted text-nowrap">₹${p.standard_b2b_price.toFixed(2)}</td>
-      <td class="text-end fw-bold text-success text-nowrap">₹${p.custom_price.toFixed(2)}</td>
-      <td>${diff(p)}</td>
-      <td class="text-nowrap small">${p.is_custom ? rateSince(p.effective_from) : '-'}</td>
-      <td>
-        <button class="btn btn-sm btn-outline-warning" onclick="openPricingModal(${p.customer_id}, ${p.product_id})">
-          <i class="bi bi-pencil me-1"></i>Modify
+      <td class="fw-bold text-nowrap">${esc(c.name)}<br><small class="text-muted fw-normal">${esc(c.code)}</small></td>
+      <td>${ratesCell(c)}</td>
+      <td class="text-nowrap small">${since(c)}</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-warning text-nowrap" onclick="openPricingModal(${c.id})">
+          <i class="bi bi-pencil me-1"></i>${c.own.length ? 'Edit rates' : 'Set rates'}
         </button>
       </td>
-    </tr>`).join('');
+    </tr>`).join('') : '<tr><td colspan="4" class="text-center text-muted py-4">No customers match.</td></tr>';
+
+  document.getElementById('pricing-pager').innerHTML = total ? `
+    <span class="small text-muted">Showing ${from + 1}–${from + page.length} of ${total}</span>
+    <div class="pager-buttons">
+      <select class="form-select form-select-sm form-dairy-control" onchange="setPricingPageSize(this.value)" title="Rows per page">
+        ${[25, 50, 100].map(n => `<option value="${n}" ${n === pricingPageSize ? 'selected' : ''}>${n} / page</option>`).join('')}
+      </select>
+      <button class="btn btn-sm btn-outline-secondary" ${pricingPage === 1 ? 'disabled' : ''} onclick="setPricingPage(${pricingPage - 1})" title="Previous page"><i class="bi bi-chevron-left"></i></button>
+      <span class="small px-2 text-nowrap">Page ${pricingPage} of ${pages}</span>
+      <button class="btn btn-sm btn-outline-secondary" ${pricingPage === pages ? 'disabled' : ''} onclick="setPricingPage(${pricingPage + 1})" title="Next page"><i class="bi bi-chevron-right"></i></button>
+    </div>` : '';
 }
 
-window.editStandardPrice = async function(productId) {
-  const p = standardPrices.find(x => x.id === productId);
-  if (!p) return;
-  const input = prompt(`New standard price for ${p.product_name} (₹ per ${p.unit}).\nCustomers with their own rate are not affected.`, p.standard_b2b_price);
-  if (input === null) return;
-  const price = parseFloat(input);
-  if (!(price > 0)) {
-    alert('Enter a price more than 0.');
-    return;
-  }
-  if (price === p.standard_b2b_price) return;
-  try {
-    const res = await DairyAPI.setStandardPrice(productId, price);
-    alert(res.message);
-    productsCache = await DairyAPI.getProducts();
-    await loadPricingTable();
-    await loadCustomerTable();
-  } catch (err) {
-    alert('Could not change price: ' + err.message);
-  }
+window.setPricingPage = function(n) {
+  pricingPage = n;
+  renderPricingTable();
 };
 
+window.setPricingPageSize = function(n) {
+  pricingPageSize = parseInt(n) || 25;
+  pricingPage = 1;
+  renderPricingTable();
+};
+
+async function afterPriceChange() {
+  productsCache = await DairyAPI.getProducts();
+  await loadPricingTable();
+  await loadCustomerTable();
+  await loadProfitabilityTable();
+}
+
+// Standard price of one product's sizes
+let stdGroup = null;
+window.openStandardPrices = function(index) {
+  stdGroup = priceGroups(standardPrices)[index];
+  if (!stdGroup) return;
+  document.getElementById('std-group-name').innerText = stdGroup.name;
+  document.getElementById('std-tbody').innerHTML = stdGroup.items.map(p => {
+    const own = pricingCache.filter(r => r.product_id === p.id && r.is_custom).length;
+    return `<tr>
+      <td class="fw-semibold">${esc(sizeLabel(p))}<br><small class="text-muted fw-normal">per ${esc(p.unit)}</small></td>
+      <td><input type="number" step="0.01" min="0.01" class="form-control form-dairy-control" data-std="${p.id}" value="${p.standard_b2b_price}" required></td>
+      <td class="small text-muted">${own ? `${own} customer${own === 1 ? '' : 's'}` : 'None'}</td>
+    </tr>`;
+  }).join('');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalStandardPrices')).show();
+};
+
+async function saveStandardPrices(e) {
+  e.preventDefault();
+  const changes = [];
+  for (const input of document.querySelectorAll('#std-tbody input[data-std]')) {
+    const p = stdGroup.items.find(x => x.id === parseInt(input.dataset.std));
+    const price = parseFloat(input.value);
+    if (!(price > 0)) {
+      alert(`Enter a price more than 0 for ${sizeLabel(p)}.`);
+      return;
+    }
+    if (Math.abs(price - p.standard_b2b_price) > 1e-9) changes.push([p, price]);
+  }
+  if (!changes.length) {
+    bootstrap.Modal.getInstance(document.getElementById('modalStandardPrices')).hide();
+    return;
+  }
+  const messages = [];
+  try {
+    for (const [p, price] of changes) messages.push((await DairyAPI.setStandardPrice(p.id, price)).message);
+  } catch (err) {
+    alert('Could not change price: ' + err.message + (messages.length ? '\n\nSaved before the error:\n' + messages.join('\n') : ''));
+    await afterPriceChange();
+    return;
+  }
+  bootstrap.Modal.getInstance(document.getElementById('modalStandardPrices')).hide();
+  alert(messages.join('\n'));
+  await afterPriceChange();
+}
+
+// One customer's rates for every product size. productId: the size to put the cursor on.
+let ratesCustomer = null;
+let ratesRows = [];
 window.openPricingModal = async function(customerId, productId = null) {
   const customer = customersCache.find(c => c.id === customerId);
-  if (!customer || !productsCache.length) {
-    alert('Customer or product list is not loaded yet.');
+  try {
+    ratesRows = await DairyAPI.getCustomPricing(customerId);
+  } catch (err) {
+    alert('Could not load rates: ' + err.message);
     return;
   }
-  const select = document.getElementById('price-product-select');
-  select.innerHTML = productsCache.map(p => `<option value="${p.id}">${esc(p.product_name)} (${esc(p.unit)})</option>`).join('');
-  select.value = productId || productsCache[0].id;
-
-  let customerPrices = [];
-  try {
-    customerPrices = await DairyAPI.getCustomPricing(customerId);
-  } catch (err) {
-    console.error('Failed to load customer prices:', err);
+  ratesCustomer = { id: customerId, name: customer ? customer.business_name : (ratesRows[0] || {}).customer_name || '' };
+  document.getElementById('rates-customer-name').innerText =
+    `${ratesCustomer.name}${customer ? ' • ' + customer.customer_code : ''}`;
+  const search = document.getElementById('rates-search');
+  search.value = '';
+  search.classList.toggle('d-none', ratesRows.length <= 10);
+  renderRatesRows();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCustomerRates')).show();
+  if (productId) {
+    setTimeout(() => document.querySelector(`#rates-tbody input[data-rate="${productId}"]`)?.focus(), 400);
   }
-  const resetBtn = document.getElementById('price-reset-btn');
-  const refreshPrice = () => {
-    const product = productsCache.find(p => p.id === parseInt(select.value));
-    const existing = customerPrices.find(cp => cp.product_id === product.id);
-    const custom = !!(existing && existing.is_custom);
-    document.getElementById('price-custom-input').value = existing ? existing.custom_price : product.standard_b2b_price;
-    document.getElementById('price-standard-hint').innerText =
-      `Standard price for ${product.product_name} is ₹${Number(product.standard_b2b_price).toFixed(2)}/${product.unit}.` +
-      (custom ? '' : ' This customer is on the standard price now.');
-    resetBtn.classList.toggle('d-none', !custom);
-  };
-  select.onchange = refreshPrice;
-  refreshPrice();
-
-  resetBtn.onclick = async () => {
-    const product = productsCache.find(p => p.id === parseInt(select.value));
-    if (!confirm(`Put ${customer.business_name} back on the standard price ₹${Number(product.standard_b2b_price).toFixed(2)} for ${product.product_name}?`)) return;
-    try {
-      const res = await DairyAPI.setCustomerPrice(customerId, product.id, null);
-      bootstrap.Modal.getInstance(document.getElementById('modalCustomPrice')).hide();
-      alert(res.message);
-      await loadPricingTable();
-      await loadCustomerTable();
-    } catch (err) {
-      alert('Could not reset price: ' + err.message);
-    }
-  };
-
-  document.getElementById('price-customer-id').value = customerId;
-  document.getElementById('price-customer-name').innerText = customer.business_name;
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCustomPrice')).show();
 };
+
+function renderRatesRows() {
+  const groups = priceGroups(ratesRows);
+  document.getElementById('rates-tbody').innerHTML = groups.length ? groups.map(g => {
+    const hasSizes = g.items.length > 1 || g.items.some(r => r.variant_name);
+    const rows = g.items.map(r => `
+      <tr data-name="${esc((g.name + ' ' + r.product_name).toLowerCase())}">
+        <td class="${hasSizes ? 'ps-4' : 'fw-semibold'}">${esc(hasSizes ? sizeLabel(r) : r.product_name)}<br><small class="text-muted fw-normal">per ${esc(r.unit)}</small></td>
+        <td class="text-end text-muted text-nowrap">${money2(r.standard_b2b_price)}</td>
+        <td><input type="number" step="0.01" min="0.01" class="form-control form-control-sm form-dairy-control" data-rate="${r.product_id}"
+             value="${r.is_custom ? r.custom_price : ''}" placeholder="${r.standard_b2b_price.toFixed(2)}" oninput="rateInputChanged(this)"></td>
+        <td class="small text-nowrap" data-diff="${r.product_id}"></td>
+        <td class="text-end">${r.is_custom ? `<button type="button" class="btn btn-sm btn-link text-decoration-none p-0" onclick="clearRate(${r.product_id})" title="Use the standard price">Standard</button>` : ''}</td>
+      </tr>`).join('');
+    return (hasSizes ? `<tr class="rate-group-row" data-group="${esc(g.name.toLowerCase())}"><td colspan="5">${esc(g.name)}</td></tr>` : '') + rows;
+  }).join('') : '<tr><td colspan="5" class="text-center text-muted py-4">No products on sale.</td></tr>';
+  document.querySelectorAll('#rates-tbody input[data-rate]').forEach(rateInputChanged);
+}
+
+// Live difference from the standard price, and a mark on changed rates
+window.rateInputChanged = function(input) {
+  const r = ratesRows.find(x => x.product_id === parseInt(input.dataset.rate));
+  const value = input.value.trim() === '' ? null : parseFloat(input.value);
+  const cell = document.querySelector(`#rates-tbody [data-diff="${r.product_id}"]`);
+  if (value === null) cell.innerHTML = '<span class="badge bg-secondary-subtle text-secondary">Standard price</span>';
+  else if (!(value > 0)) cell.innerHTML = '<span class="text-danger">Enter more than 0</span>';
+  else {
+    const diff = r.standard_b2b_price - value;
+    cell.innerHTML = diff > 0 ? `<span class="badge bg-success-subtle text-success">₹${diff.toFixed(2)} less</span>`
+      : diff < 0 ? `<span class="badge bg-warning-subtle text-warning">₹${Math.abs(diff).toFixed(2)} more</span>`
+      : '<span class="badge bg-secondary-subtle text-secondary">Same as standard</span>';
+  }
+  input.classList.toggle('rate-changed', rateChange(r, value) !== undefined);
+  const n = ratesChanges().length;
+  document.getElementById('rates-changes').innerText = n ? `${n} change${n === 1 ? '' : 's'} not saved` : '';
+};
+
+window.clearRate = function(productId) {
+  const input = document.querySelector(`#rates-tbody input[data-rate="${productId}"]`);
+  input.value = '';
+  rateInputChanged(input);
+};
+
+// undefined: no change; null: back to the standard price; a number: the new own rate
+function rateChange(r, value) {
+  if (value === null) return r.is_custom ? null : undefined;
+  if (!(value > 0)) return undefined;
+  if (r.is_custom) return Math.abs(value - r.custom_price) > 1e-9 ? value : undefined;
+  return Math.abs(value - r.standard_b2b_price) > 1e-9 ? value : undefined;
+}
+
+function ratesChanges() {
+  const out = [];
+  document.querySelectorAll('#rates-tbody input[data-rate]').forEach(input => {
+    const r = ratesRows.find(x => x.product_id === parseInt(input.dataset.rate));
+    const value = input.value.trim() === '' ? null : parseFloat(input.value);
+    const change = rateChange(r, value);
+    if (change !== undefined) out.push([r, change]);
+  });
+  return out;
+}
+
+async function saveCustomerRates(e) {
+  e.preventDefault();
+  const bad = [...document.querySelectorAll('#rates-tbody input[data-rate]')]
+    .find(i => i.value.trim() !== '' && !(parseFloat(i.value) > 0));
+  if (bad) {
+    alert('Enter a rate more than 0, or leave it blank for the standard price.');
+    bad.focus();
+    return;
+  }
+  const changes = ratesChanges();
+  if (!changes.length) {
+    bootstrap.Modal.getInstance(document.getElementById('modalCustomerRates')).hide();
+    return;
+  }
+  const btn = document.getElementById('rates-save');
+  btn.disabled = true;
+  let repriced = 0;
+  let saved = 0;
+  try {
+    for (const [r, price] of changes) {
+      repriced += (await DairyAPI.setCustomerPrice(ratesCustomer.id, r.product_id, price)).orders_repriced || 0;
+      saved += 1;
+    }
+  } catch (err) {
+    alert(`Could not save all rates: ${err.message}` + (saved ? `\n${saved} rate(s) were saved before the error.` : ''));
+    btn.disabled = false;
+    await afterPriceChange();
+    return;
+  }
+  btn.disabled = false;
+  bootstrap.Modal.getInstance(document.getElementById('modalCustomerRates')).hide();
+  alert(`${ratesCustomer.name}: ${saved} rate${saved === 1 ? '' : 's'} saved.` +
+    (repriced ? ` Updated ${repriced} upcoming order(s) that are not dispatched yet.` : '') +
+    ' Delivered milk keeps the old rate.');
+  await afterPriceChange();
+}
 
 // Daily dispatch (Orders page)
 function dispatchDate() {
@@ -2864,31 +3045,17 @@ window.loadSalesReport = async function() {
 
 // Form Handlers
 function setupModalForms() {
-  // Custom Price Form
-  const priceForm = document.getElementById('form-custom-price');
-  if (priceForm) {
-    priceForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const customerId = parseInt(document.getElementById('price-customer-id').value);
-      const productId = parseInt(document.getElementById('price-product-select').value);
-      const customPrice = parseFloat(document.getElementById('price-custom-input').value);
-      if (!(customPrice > 0)) {
-        alert('Enter a price more than 0.');
-        return;
-      }
-
-      try {
-        const res = await DairyAPI.setCustomerPrice(customerId, productId, customPrice);
-        bootstrap.Modal.getInstance(document.getElementById('modalCustomPrice')).hide();
-        alert(res.message);
-        await loadPricingTable();
-        await loadCustomerTable();
-        await loadProfitabilityTable();
-      } catch (err) {
-        alert('Failed to save price: ' + err.message);
-      }
+  document.getElementById('form-customer-rates').addEventListener('submit', saveCustomerRates);
+  document.getElementById('form-standard-prices').addEventListener('submit', saveStandardPrices);
+  document.getElementById('rates-search').addEventListener('input', (e) => {
+    const term = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('#rates-tbody tr[data-name]').forEach(tr => tr.classList.toggle('d-none', !!term && !tr.dataset.name.includes(term)));
+    document.querySelectorAll('#rates-tbody tr[data-group]').forEach(tr => {
+      let next = tr.nextElementSibling, any = false;
+      while (next && next.dataset.name !== undefined) { any = any || !next.classList.contains('d-none'); next = next.nextElementSibling; }
+      tr.classList.toggle('d-none', !any);
     });
-  }
+  });
 
   // Customer app login form
   document.getElementById('form-customer-login').addEventListener('submit', async (e) => {
@@ -2952,8 +3119,10 @@ function setupModalForms() {
     }
   });
 
-  document.getElementById('pricing-search').addEventListener('input', renderPricingTable);
-  document.getElementById('pricing-custom-only').addEventListener('change', renderPricingTable);
+  const pricingFirstPage = () => { pricingPage = 1; renderPricingTable(); };
+  document.getElementById('pricing-search').addEventListener('input', pricingFirstPage);
+  document.getElementById('pricing-product').addEventListener('change', pricingFirstPage);
+  document.getElementById('pricing-filter').addEventListener('change', pricingFirstPage);
 
   ['cust-search', 'cust-filter-driver', 'cust-show-inactive'].forEach(fid => {
     document.getElementById(fid).addEventListener(fid === 'cust-search' ? 'input' : 'change', renderCustomerTable);

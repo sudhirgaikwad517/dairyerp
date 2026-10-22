@@ -150,17 +150,13 @@ class _DailyOrdersScreenState extends State<DailyOrdersScreen> {
                         ],
                       ),
                       if (d.hasOrder) ...[
-                        const SizedBox(height: 6),
-                        for (final i in d.items)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 2),
-                            child: Text(
-                              '${qtyUnit(i.quantity, i.unit)}  ${i.productName}',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13, color: AppTheme.textMain, height: 1.3),
-                            ),
-                          ),
+                        const SizedBox(height: 4),
+                        Text(
+                          daySummaryText(d),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13, color: AppTheme.textMain),
+                        ),
                       ],
                       const SizedBox(height: 6),
                       Row(
@@ -177,6 +173,8 @@ class _DailyOrdersScreenState extends State<DailyOrdersScreen> {
                               style: TextStyle(fontSize: 12, color: d.editable ? AppTheme.primaryBlue : AppTheme.textMuted),
                             ),
                           ),
+                          if (d.hasOrder || d.editable)
+                            const Icon(Icons.chevron_right, size: 20, color: AppTheme.textMuted),
                         ],
                       ),
                     ],
@@ -206,6 +204,15 @@ class _DailyOrdersScreenState extends State<DailyOrdersScreen> {
   }
 }
 
+/// One line for a day's card: '500 pouch • Cow Milk Brand Pouch - 1 L', or '4 products • 1,250 L'.
+String daySummaryText(DayPlan d) {
+  if (d.items.length == 1) {
+    final i = d.items.first;
+    return '${qtyUnit(i.quantity, i.unit)} • ${i.productName}';
+  }
+  return '${d.items.length} products${d.totalLitres > 0 ? ' • ${qty(d.totalLitres)} L milk' : ''}';
+}
+
 List<OrderLineView> dayLines(DayPlan d) => d.items
     .map(
       (i) => OrderLineView(
@@ -219,11 +226,54 @@ List<OrderLineView> dayLines(DayPlan d) => d.items
     )
     .toList();
 
-/// Opens a day: the order form while it can still be changed, otherwise its details (read only).
+/// Opens a day. An ordered day shows its details first (products, quantity x rate, total), with
+/// Change / Cancel while it is still open; an open day without an order goes straight to the order form.
 /// Returns the updated day after a save or cancel, or null.
 Future<DayPlan?> showDayOrderSheet(BuildContext context, DayPlan day, {List<ProductItem>? products}) async {
   final messenger = ScaffoldMessenger.of(context);
   final when = DateFormat('EEEE, dd MMM').format(day.day);
+  if (day.editable && day.hasOrder) {
+    final deadline = DateFormat('h:mm a, dd MMM').format(day.orderDeadline);
+    final (label, color) = dayStatus(day);
+    final action = await showOrderDetailsSheet<String>(
+      context,
+      title: when,
+      subtitle: [
+        '${day.items.length} product${day.items.length == 1 ? '' : 's'}',
+        if (day.totalLitres > 0) '${qty(day.totalLitres)} L milk',
+        'rates include GST',
+      ].join(' • '),
+      statusText: label,
+      statusColor: color,
+      lines: dayLines(day),
+      total: day.totalAmount,
+      note: SheetNote(
+        'You can change or cancel this order till $deadline. After that it is locked.',
+        icon: Icons.edit_calendar_outlined,
+        color: AppTheme.primaryBlue,
+      ),
+      actions: [
+        ElevatedButton.icon(
+          onPressed: () => Navigator.pop(context, 'change'),
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          label: const Text('Change Order'),
+        ),
+        if (day.canCancel)
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(context, 'cancel'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.alertRose,
+              side: const BorderSide(color: AppTheme.alertRose),
+            ),
+            icon: const Icon(Icons.cancel_outlined, size: 18),
+            label: const Text('Cancel Order'),
+          ),
+      ],
+    );
+    if (!context.mounted) return null;
+    if (action == 'cancel') return _cancelDay(context, day);
+    if (action != 'change') return null;
+  }
   if (!day.editable) {
     if (!day.hasOrder) {
       messenger.showSnackBar(
@@ -288,6 +338,43 @@ Future<DayPlan?> showDayOrderSheet(BuildContext context, DayPlan day, {List<Prod
     );
   }
   return updated;
+}
+
+/// Cancels a day's order after asking. Returns the updated day, or null.
+Future<DayPlan?> _cancelDay(BuildContext context, DayPlan day) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final deadline = DateFormat('h:mm a, dd MMM').format(day.orderDeadline);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Cancel this order?'),
+      content: Text(
+        '${DateFormat('EEEE, dd MMM').format(day.day)} • ${rupees(day.totalAmount)}\n\n'
+        'No milk will come on this day. You can order again till $deadline.',
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Go back')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.alertRose),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Cancel Order'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return null;
+  try {
+    final updated = await ApiService.setDay(day.day, [
+      for (final i in day.items) {'product_id': i.productId, 'quantity': 0.0},
+    ]);
+    messenger.showSnackBar(
+      SnackBar(content: Text('${DateFormat('EEE, dd MMM').format(day.day)}: order cancelled'), backgroundColor: AppTheme.navy),
+    );
+    return updated;
+  } on ApiException catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppTheme.alertRose));
+    return null;
+  }
 }
 
 class _DayEditor extends StatefulWidget {

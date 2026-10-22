@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from backend.app.core.security import require_admin
 from backend.app.database import get_db
 from backend.app.models.entities import AuditLog, Customer, CustomerPricing, Order, OrderItem, Product, User
+from backend.app.services.order_lines import litres_per_unit
 from backend.app.services.order_pricing import OPEN_ORDER_STATUSES, reprice_open_orders, set_customer_price
 
 router = APIRouter(prefix="/pricing", tags=["Customer Pricing"])
@@ -23,6 +24,12 @@ class StandardPriceSchema(BaseModel):
     standard_b2b_price: float
 
 
+def _group(p: Product) -> dict:
+    """Sizes of one product (1 L, 500 ML) share a group name; the screens show them together."""
+    return {"group_name": p.group_name or p.product_name, "variant_name": p.variant_name or "",
+            "litres_in_unit": litres_per_unit(p)}
+
+
 def _row(customer: Customer, product: Product, cp: Optional[CustomerPricing]) -> dict:
     price = cp.custom_price if cp else product.standard_b2b_price
     return {
@@ -33,6 +40,7 @@ def _row(customer: Customer, product: Product, cp: Optional[CustomerPricing]) ->
         "customer_active": bool(customer.is_active),
         "product_id": product.id,
         "product_name": product.product_name,
+        **_group(product),
         "unit": product.unit,
         "standard_b2b_price": product.standard_b2b_price,
         "custom_price": price,
@@ -51,15 +59,16 @@ def get_all_custom_pricing(customer_id: Optional[int] = None, include_inactive: 
         customers = customers.filter(Customer.id == customer_id)
     elif not include_inactive:
         customers = customers.filter(Customer.is_active == True)
-    products = db.query(Product).filter(Product.is_active == True).order_by(Product.id).all()
+    products = db.query(Product).filter(Product.is_active == True).order_by(Product.sort_order, Product.id).all()
     custom = {(cp.customer_id, cp.product_id): cp for cp in db.query(CustomerPricing).all()}
     return [_row(c, p, custom.get((c.id, p.id))) for c in customers.all() for p in products]
 
 
 @router.get("/products")
 def standard_prices(db: Session = Depends(get_db)):
-    return [{"id": p.id, "product_name": p.product_name, "unit": p.unit, "standard_b2b_price": p.standard_b2b_price}
-            for p in db.query(Product).filter(Product.is_active == True).order_by(Product.id).all()]
+    return [{"id": p.id, "product_name": p.product_name, **_group(p), "unit": p.unit,
+             "standard_b2b_price": p.standard_b2b_price}
+            for p in db.query(Product).filter(Product.is_active == True).order_by(Product.sort_order, Product.id).all()]
 
 
 @router.post("/set")
