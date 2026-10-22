@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
 from backend.app.models.entities import Customer, Delivery, DeliveryClaim, DeliveryRoute, Order, OrderItem, Product
-from backend.app.services.order_lines import gst_split, is_litre, order_lines
+from backend.app.services.order_lines import gst_split, is_litre, litres_per_unit, order_lines
 
 # Orders whose milk reached the customer (same as billing)
 SOLD_STATUSES = ("delivered", "invoiced", "paid")
@@ -115,6 +115,7 @@ def build_sales_report(
         recon[key]["count"] += count
 
     litre_ids = {pid for pid, pr in products.items() if is_litre(pr)}
+    lpu = {pid: litres_per_unit(pr) for pid, pr in products.items()}  # 0.5 for a 500 ML pouch
 
     def book(c_id, p_id, rate, qty, amt, tax, day, order_id=None):
         """Add (or with negative qty/amount, take off) a sale in every view of the register.
@@ -130,7 +131,7 @@ def build_sales_report(
         pt["amount"] += amt
         pt["tax"] += tax
         dt = date_totals.setdefault(day, {"quantity": 0.0, "amount": 0.0, "tax": 0.0, "orders": set()})
-        dt["quantity"] += qty if p_id in litre_ids else 0.0
+        dt["quantity"] += qty * lpu.get(p_id, 0.0)
         dt["amount"] += amt
         dt["tax"] += tax
         if order_id is not None:
@@ -141,7 +142,7 @@ def build_sales_report(
 
     # Same per-product rule as the bills: only what reached the customer is sold
     lines_by_order = order_lines(db, [o for o in orders if o.status != "cancelled"], products)
-    lq = lambda r, q: q if r["is_litre"] else 0.0  # reconciliation quantities are litres of milk
+    lq = lambda r, q: q * r["litres_per_unit"]  # reconciliation quantities are litres of milk
 
     for ord_obj in orders:
         rows = [r for r in lines_by_order.get(ord_obj.id, []) if not product_id or r["product_id"] == product_id]
@@ -189,7 +190,7 @@ def build_sales_report(
         add("claims_refunded" if cl.settlement == "refund" else "claims_deducted", lq(row, qty), amt, 1)
 
     report_order_ids = set().union(*cust_orders.values()) if cust_orders else set()
-    overall_qty = sum(p["quantity"] for pid, p in prod_totals.items() if pid in litre_ids)
+    overall_qty = sum(p["quantity"] * lpu.get(pid, 0.0) for pid, p in prod_totals.items())
     overall_amt = sum(p["amount"] for p in prod_totals.values())
     overall_tax = sum(p["tax"] for p in prod_totals.values())
 
@@ -225,7 +226,7 @@ def build_sales_report(
             "route_name": route_name,
             "total_orders_count": len(cust_orders.get(c_id, ())),
             # Litres of milk; other products are in their own units in "products"
-            "customer_total_quantity": round(sum(l["quantity"] for l in lines if l["product_id"] in litre_ids), 2),
+            "customer_total_quantity": round(sum(l["quantity"] * lpu.get(l["product_id"], 0.0) for l in lines), 2),
             "customer_total_amount": round(c_amt, 2),
             "customer_total_tax": round(sum(l["tax_amount"] for l in lines), 2),
             "customer_net_amount": round(sum(l["net_amount"] for l in lines), 2),

@@ -10,9 +10,34 @@ from backend.app.models.entities import (
     BusinessProfile, Customer, CustomerLedger, DeliveryClaim, CustomerPricing, Delivery, Invoice, Order, OrderItem, Payment, Product
 )
 from backend.app.services import notifications
-from backend.app.services.order_lines import gst_split, order_lines
+from backend.app.services.order_lines import gst_split, litres_per_unit, order_lines
 
 BILL_TYPES = ("daily", "fortnightly", "monthly", "custom")
+
+# Bills count an order on the day it was ordered: milk delivered on the morning of the 24th is
+# ordered on the 23rd (the cut-off may run past midnight, but it is still the 23rd's order), so it
+# is billed on the 23rd. Bill periods and bill lines are in order days; deliveries stay as they are.
+ORDER_TO_DELIVERY = timedelta(days=1)
+
+
+def bill_day(delivery_day: date) -> date:
+    """The day an order is billed on: the day before its delivery."""
+    return delivery_day - ORDER_TO_DELIVERY
+
+
+def delivery_range(start: date, end: date) -> Tuple[date, date]:
+    """Delivery days whose orders fall in the bill period start..end."""
+    return start + ORDER_TO_DELIVERY, end + ORDER_TO_DELIVERY
+
+
+def order_days(inv: Optional[Invoice]) -> bool:
+    """Is this bill in order days? Bills made before that rule are in delivery days."""
+    return inv is None or inv.day_basis == "order"
+
+
+def line_day(inv: Optional[Invoice], delivery_day: date) -> date:
+    """The bill line (day) that holds a delivery day's milk in this bill."""
+    return bill_day(delivery_day) if order_days(inv) else delivery_day
 
 DEFAULT_PROFILE = {
     "business_name": "AKASH DAIRY FARM",
@@ -118,11 +143,12 @@ def claims_to_deduct(db: Session, customer_id: int, start: date, end: date, invo
     Approved claims that reduce this period's bill: those not yet settled anywhere, plus (when
     re-reading an existing bill) the ones already deducted in that bill.
     """
+    first, last = delivery_range(start, end)  # claims are about a delivery day
     q = db.query(DeliveryClaim).filter(
         DeliveryClaim.customer_id == customer_id,
         DeliveryClaim.status == "approved",
-        DeliveryClaim.issue_date >= start,
-        DeliveryClaim.issue_date <= end,
+        DeliveryClaim.issue_date >= first,
+        DeliveryClaim.issue_date <= last,
     )
     claims = [c for c in q.all() if c.settlement != "refund"]  # refunded separately: never deducted
     if all_approved:
@@ -133,16 +159,18 @@ def claims_to_deduct(db: Session, customer_id: int, start: date, end: date, invo
 def compute_bill_lines(db: Session, customer: Customer, start: date, end: date, invoice_id: Optional[int] = None,
                        all_approved_claims: bool = False) -> List[Dict]:
     """
-    Day-wise lines for the period: for each day, one line per product delivered (quantity, rate,
-    amount). A day with nothing delivered gets one empty line for the customer's usual product, so
-    the bill reads like the dairy's register. Only what was actually delivered is billed, per product.
-    Approved claims (spoiled / short / not delivered) are deducted from their day and product.
+    Day-wise lines for the period: for each order day, one line per product delivered (quantity,
+    rate, amount). An order is on the day before its delivery (bill_day). A day with nothing
+    delivered gets one empty line for the customer's usual product, so the bill reads like the
+    dairy's register. Only what was actually delivered is billed, per product. Approved claims
+    (spoiled / short / not delivered) are deducted from their order's day and product.
     Rates include GST.
     """
+    first, last = delivery_range(start, end)
     orders = db.query(Order).filter(
         Order.customer_id == customer.id,
-        Order.delivery_date >= start,
-        Order.delivery_date <= end,
+        Order.delivery_date >= first,
+        Order.delivery_date <= last,
         Order.status.in_(["delivered", "invoiced", "paid"])
     ).all()
     products = {p.id: p for p in db.query(Product).all()}
@@ -153,14 +181,14 @@ def compute_bill_lines(db: Session, customer: Customer, start: date, end: date, 
         for r in per_order.get(o.id, []):
             if r["delivered"] <= 0:
                 continue
-            slot = by_day.setdefault(o.delivery_date, {}).setdefault(
+            slot = by_day.setdefault(bill_day(o.delivery_date), {}).setdefault(
                 r["product_id"], {"qty": 0.0, "amount": 0.0, "gst_rate": r["gst_rate"]})
             slot["qty"] += r["delivered"]
             slot["amount"] += r["amount"]
 
     claim_by: Dict[tuple, Dict[str, float]] = {}
     for c in claims_to_deduct(db, customer.id, start, end, invoice_id, all_approved=all_approved_claims):
-        cd = claim_by.setdefault((c.issue_date, c.product_id), {"qty": 0.0, "amount": 0.0})
+        cd = claim_by.setdefault((bill_day(c.issue_date), c.product_id), {"qty": 0.0, "amount": 0.0})
         cd["qty"] += c.approved_qty or 0.0
         cd["amount"] += c.credit_amount or 0.0
 
@@ -188,11 +216,19 @@ def compute_bill_lines(db: Session, customer: Customer, start: date, end: date, 
             else:
                 rate = round(customer_rate(db, customer.id, p) if p else 0.0, 2)
             lines.append({"date": day.isoformat(), "product_id": pid, "product": p.product_name if p else "Product",
-                          "unit": p.unit if p else "", "qty": qty, "rate": rate, "amount": amount,
+                          "unit": p.unit if p else "", "litres_per_unit": litres_per_unit(p),
+                          "qty": qty, "rate": rate, "amount": amount,
                           "gst_rate": d["gst_rate"] or 0.0,
                           "claim_qty": round(claim["qty"], 3), "claim_amount": round(claim["amount"], 2)})
         day += timedelta(days=1)
     return lines
+
+
+def _lpu(line: Dict) -> float:
+    """Litres in one unit of a bill line (lines saved before pack sizes existed: 1 for litres)."""
+    if line.get("litres_per_unit") is not None:
+        return line["litres_per_unit"]
+    return 1.0 if (line.get("unit") or "").upper() == "L" else 0.0
 
 
 def product_summary(lines: List[Dict]) -> List[Dict]:
@@ -200,7 +236,8 @@ def product_summary(lines: List[Dict]) -> List[Dict]:
     out: Dict[int, Dict] = {}
     for l in lines:
         p = out.setdefault(l.get("product_id"), {"product_id": l.get("product_id"), "product": l.get("product", "Milk"),
-                                                  "unit": l.get("unit", "L"), "qty": 0.0, "amount": 0.0, "rates": set(),
+                                                  "unit": l.get("unit", "L"), "litres_per_unit": _lpu(l),
+                                                  "qty": 0.0, "amount": 0.0, "rates": set(),
                                                   "claim_qty": 0.0, "claim_amount": 0.0})
         p["qty"] += l["qty"]
         p["amount"] += l["amount"]
@@ -261,7 +298,7 @@ def summarize_lines(lines: List[Dict]) -> Dict:
         p = summary[0] if summary else {"qty": 0.0, "rate": lines[0]["rate"] if lines else 0.0, "mixed_rates": False}
         return {"total_qty": p["qty"], "total_amount": total_amount, "rate": p["rate"], "mixed_rates": p["mixed_rates"],
                 "products": summary, "multi_product": False}
-    litres = round(sum(p["qty"] for p in summary if (p["unit"] or "").upper() == "L"), 3)
+    litres = round(sum(p["qty"] * p["litres_per_unit"] for p in summary), 3)
     return {"total_qty": litres, "total_amount": total_amount, "rate": None, "mixed_rates": True,
             "products": summary, "multi_product": True}
 
@@ -280,11 +317,25 @@ def recalculate_ledger(db: Session, customer: Customer) -> None:
 
 
 def find_overlapping_bill(db: Session, customer_id: int, start: date, end: date) -> Optional[Invoice]:
+    """A bill whose period (order days) overlaps start..end."""
     return db.query(Invoice).filter(
         Invoice.customer_id == customer_id,
         Invoice.bill_type.isnot(None),
         Invoice.period_start <= end,
         Invoice.period_end >= start
+    ).first()
+
+
+def bill_for_delivery_day(db: Session, customer_id: int, delivery_day: date) -> Optional[Invoice]:
+    """The bill that holds the order delivered on this day (billed on the day before; older bills on the day)."""
+    day = bill_day(delivery_day)
+    found = db.query(Invoice).filter(
+        Invoice.customer_id == customer_id, Invoice.bill_type.isnot(None), Invoice.day_basis == "order",
+        Invoice.period_start <= day, Invoice.period_end >= day,
+    ).first()
+    return found or db.query(Invoice).filter(
+        Invoice.customer_id == customer_id, Invoice.bill_type.isnot(None), Invoice.day_basis.is_(None),
+        Invoice.period_start <= delivery_day, Invoice.period_end >= delivery_day,
     ).first()
 
 
@@ -302,14 +353,15 @@ def preview_bills(db: Session, bill_type: str, start: date, end: date, customer_
             continue
         existing = find_overlapping_bill(db, c.id, start, end)
         prev = round(c.current_outstanding or 0.0, 2)
+        first, last = delivery_range(start, end)
         # Orders in the period that are not delivered yet: billing now would leave them out for good
         undelivered = db.query(Order).filter(
-            Order.customer_id == c.id, Order.delivery_date >= start, Order.delivery_date <= end,
+            Order.customer_id == c.id, Order.delivery_date >= first, Order.delivery_date <= last,
             Order.status.notin_(["delivered", "invoiced", "paid", "cancelled"]), Order.total_amount > 0,
         ).count()
         pending_claims = db.query(DeliveryClaim).filter(
             DeliveryClaim.customer_id == c.id, DeliveryClaim.status == "pending",
-            DeliveryClaim.issue_date >= start, DeliveryClaim.issue_date <= end
+            DeliveryClaim.issue_date >= first, DeliveryClaim.issue_date <= last
         ).count()
         result.append({
             "customer_id": c.id,
@@ -337,11 +389,13 @@ def preview_bills(db: Session, bill_type: str, start: date, end: date, customer_
 def generate_bills(db: Session, bill_type: str, start: date, end: date, customer_ids: Optional[List[int]] = None) -> Dict:
     created, skipped = [], []
     today = date.today()
-    if end > today:
-        # Days still to come could get milk later, and a billed period cannot be billed again
+    if delivery_range(start, end)[1] > today:
+        # Orders of the last day are delivered the next morning, and a billed period cannot be billed again
+        last = delivery_range(start, end)[1]
         raise HTTPException(status_code=400, detail=(
-            f"This period runs till {end:%d %b %Y}. Make the bill after it is over, "
-            f"or choose a custom period up to today."))
+            f"This period runs till {end:%d %b %Y}; its last orders are delivered on {last:%d %b %Y}. "
+            f"Make the bill after that delivery, or choose a custom period up to "
+            f"{today - ORDER_TO_DELIVERY:%d %b %Y}."))
     for row in preview_bills(db, bill_type, start, end, customer_ids):
         if row["already_billed"]:
             skipped.append({**row, "reason": f"Already billed in {row['already_billed']}"})
@@ -365,11 +419,11 @@ def generate_bills(db: Session, bill_type: str, start: date, end: date, customer
         inv = Invoice(
             invoice_number=number, customer_id=customer.id, branch_id=customer.branch_id,
             invoice_date=today, due_date=today + timedelta(days=customer.credit_days or 0),
-            total_litres=round(sum(p["qty"] for p in row["products"] if (p["unit"] or "").upper() == "L"), 3),
+            total_litres=round(sum(p["qty"] * p["litres_per_unit"] for p in row["products"]), 3),
             subtotal=amount, total_tax=0.0, transport_charge=0.0,
             total_amount=amount, paid_amount=0.0, balance_due=amount, payment_status="pending",
             bill_type=bill_type, period_start=start, period_end=end, previous_balance=prev,
-            advance_applied=advance, bill_lines=json.dumps(lines)
+            advance_applied=advance, bill_lines=json.dumps(lines), day_basis="order"
         )
         db.add(inv)
         db.add(CustomerLedger(
@@ -567,24 +621,27 @@ def record_bill_payment(db: Session, invoice: Invoice, amount: float, pay_date: 
 
 
 def claim_adjustments(db: Session, customer_id: int, start: date, end: date, lines: List[Dict],
-                      deducted: List[DeliveryClaim]) -> List[Dict]:
+                      deducted: List[DeliveryClaim], inv: Optional[Invoice] = None) -> List[Dict]:
     """
     One row per approved claim in the period for the bill's "Claim Adjustments" table:
     the day's original quantity, the claim, and what was billed. Refunded claims are listed too
     (marked as refunded) so the bill is a complete record, but they do not change any amount.
     """
     by_key = {(l["date"], l.get("product_id")): l for l in lines}
+    first, last = delivery_range(start, end) if order_days(inv) else (start, end)
     refunded = db.query(DeliveryClaim).filter(
         DeliveryClaim.customer_id == customer_id, DeliveryClaim.status == "approved",
         DeliveryClaim.settlement == "refund",
-        DeliveryClaim.issue_date >= start, DeliveryClaim.issue_date <= end,
+        DeliveryClaim.issue_date >= first, DeliveryClaim.issue_date <= last,
     ).all()
     rows = []
     for c in sorted(deducted + refunded, key=lambda x: (x.issue_date, x.id)):
-        line = by_key.get((c.issue_date.isoformat(), c.product_id), {})
+        day = line_day(inv, c.issue_date).isoformat()  # the bill line of that delivery's order
+        line = by_key.get((day, c.product_id), {})
         original = round(line.get("qty", 0.0) + line.get("claim_qty", 0.0), 3)
         rows.append({
-            "date": c.issue_date.isoformat(),
+            "date": day,
+            "delivery_date": c.issue_date.isoformat(),
             "product": line.get("product", ""),
             "unit": line.get("unit", ""),
             "claim_number": c.claim_number,
@@ -613,7 +670,7 @@ def bill_to_dict(inv: Invoice) -> Dict:
         l.setdefault("gst_rate", 0.0)
     by_key = {(l["date"], l.get("product_id")): l for l in lines}
     for claim in credit_claims(db, inv):
-        line = by_key.get((claim.issue_date.isoformat(), claim.product_id))
+        line = by_key.get((line_day(inv, claim.issue_date).isoformat(), claim.product_id))
         if not line:
             continue
         line["qty"] = round(max(0.0, line["qty"] - (claim.approved_qty or 0.0)), 2)
@@ -672,7 +729,7 @@ def bill_to_dict(inv: Invoice) -> Dict:
         "current_outstanding": current,
         "current_outstanding_label": f"TOTAL OUTSTANDING (AS ON {date.today():%d %b %Y})".upper(),
         "total_payable": round(max(0.0, prev) + f["net"] - f["advance"] - f["paid"], 2),
-        "adjustments": claim_adjustments(db, inv.customer_id, inv.period_start, inv.period_end, lines, deducted_claims)
+        "adjustments": claim_adjustments(db, inv.customer_id, inv.period_start, inv.period_end, lines, deducted_claims, inv)
         if inv.period_start else [],
         "lines": lines,
     }

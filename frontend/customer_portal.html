@@ -10,7 +10,7 @@
   <!-- Bootstrap 5 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261022c">
+  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261022d">
   <style>
     .cp-wrap { max-width: 1140px; }
     .portal-ledger th,
@@ -220,12 +220,13 @@
         <div class="modal-body">
           <div id="od-items"></div>
           <div class="d-flex justify-content-between fw-bold fs-5 mt-3"><span>Total</span><span id="od-total">₹0</span></div>
-          <small class="text-muted d-block">Rates include GST. Check the quantities: once placed, the order cannot be changed or cancelled from the app.</small>
+          <small class="text-muted d-block" id="od-note">Rates include GST.</small>
           <div class="text-danger small mt-2" id="od-error"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-dairy-primary" onclick="saveDay()">Place order</button>
+          <button type="button" class="btn btn-outline-danger me-auto d-none" id="od-cancel-order" onclick="saveDay(true)">Cancel order</button>
+          <button type="button" class="btn btn-dairy-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-dairy-primary" id="od-save" onclick="saveDay()">Place order</button>
         </div>
       </div>
     </div>
@@ -233,7 +234,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>window.DAIRY_APP = 'customer';</script>
-  <script src="/frontend/js/api.js?v=20261022c"></script>
+  <script src="/frontend/js/api.js?v=20261022d"></script>
   <script>
     const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, ch => (
@@ -311,9 +312,9 @@
 
       // Next 7 days
       milkProductId = (lastOrder && lastOrder.items[0]) ? lastOrder.items[0].product_id : milkProductId;
-      const cutoff = (profile.order_cutoff_time || '21:00');
+      const cutoff = profile.order_cutoff_text || `${profile.order_cutoff_time || '21:00'} the evening before`;
       document.getElementById('cp-cutoff-note').innerText =
-        `Order for a day until ${cutoff} the evening before. Once placed, an order cannot be changed or cancelled; call the dairy for changes.`;
+        `Order, change or cancel a day's order till ${cutoff}. After that it is locked; call the dairy for changes.`;
       renderDays(days);
       showTomorrow(days);
 
@@ -494,10 +495,12 @@
         ? (day.items.length === 1 ? qtyU(day.items[0].quantity, day.items[0].unit) : money(day.total_amount)) : 'No order';
       document.getElementById('cp-tomorrow-note').innerText = !day ? '' : (day.editable
         ? 'order by ' + new Date(day.order_deadline).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-        : (has ? "confirmed" : "orders closed"));
+        : (has ? "locked" : "orders closed"));
     }
 
+    let daysCache = [];
     function renderDays(days) {
+      daysCache = days;
       document.getElementById('cp-days').innerHTML = days.map(d => {
         const dt = new Date(d.date + 'T00:00:00');
         const weekday = dt.toLocaleDateString('en-IN', { weekday: 'short' });
@@ -508,10 +511,10 @@
           ? `<b>${esc(itemsText(d.items))}</b><br><small class="text-muted">${esc(d.status.replace(/_/g, ' '))} • ${money(d.total_amount)}</small>`
           : '<span class="text-muted">No order</span>';
         const action = d.editable
-          ? `<button class="btn btn-sm btn-dairy-primary" onclick="openDayOrder('${d.date}')"><i class="bi bi-plus-circle me-1"></i>Order</button>
+          ? `<button class="btn btn-sm btn-dairy-primary" onclick="openDayOrder('${d.date}')"><i class="bi ${has ? 'bi-pencil' : 'bi-plus-circle'} me-1"></i>${has ? 'Change' : 'Order'}</button>
              <br><small class="text-muted">until ${esc(deadline)}</small>`
           : has
-            ? `<span class="pill pill-green"><i class="bi bi-lock-fill"></i> Placed</span><br><small class="text-muted">call the dairy to change</small>`
+            ? `<span class="pill pill-green"><i class="bi bi-lock-fill"></i> Locked</span><br><small class="text-muted">call the dairy to change</small>`
             : `<span class="pill pill-grey">${d.orders_closed ? 'Orders closed' : 'Locked'}</span>`;
         return `<div class="day-row">
             <div class="day-when"><b>${esc(weekday)}, ${esc(dayMonth)}</b></div>
@@ -532,20 +535,54 @@
         return;
       }
       orderDay = day;
+      const plan = daysCache.find(d => d.date === day) || { items: [] };
+      const current = {};
+      (plan.items || []).forEach(i => { current[i.product_id] = i; });
+      // Products already on the order stay on the form even if they were switched off since
+      (plan.items || []).forEach(i => {
+        if (!myProductsList.some(p => p.id === i.product_id)) {
+          myProductsList.push({ id: i.product_id, product_name: i.product_name, group_name: i.product_name, variant_name: null,
+            unit: i.unit, custom_price: i.rate, description: '' });
+        }
+      });
       const dayText = new Date(day + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short' });
-      document.getElementById('od-title').innerText = `Order for ${dayText}`;
-      document.getElementById('od-items').innerHTML = myProductsList.map(p => `
-        <div class="d-flex align-items-center gap-2 py-2 border-bottom">
+      const deadline = new Date(plan.order_deadline || Date.now()).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const hasOrder = (plan.items || []).length > 0;
+      document.getElementById('od-title').innerText = `${hasOrder ? 'Change order' : 'Order'} for ${dayText}`;
+      document.getElementById('od-note').innerText = `Rates include GST. You can change or cancel this order till ${deadline}.`;
+      document.getElementById('od-save').innerText = hasOrder ? 'Save changes' : 'Place order';
+      document.getElementById('od-cancel-order').classList.toggle('d-none', !plan.can_cancel);
+      // Sizes of one product (500 ML, 1 L) are shown together under its name
+      const groups = new Map();
+      myProductsList.forEach(p => {
+        const g = p.group_name || p.product_name;
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g).push(p);
+      });
+      const row = (p, sized) => {
+        const cur = current[p.id];
+        const rate = cur ? cur.rate : p.custom_price;  // the order keeps the rate it was placed at
+        return `
+        <div class="d-flex align-items-center gap-2 py-2 ${sized ? 'ps-3' : ''}">
           <div class="flex-grow-1">
-            <div class="fw-bold">${esc(p.product_name)}</div>
-            <small class="text-muted">${money(p.custom_price)} per ${esc(p.unit)}${p.description ? ' • ' + esc(p.description) : ''}</small>
+            <div class="${sized ? 'fw-semibold' : 'fw-bold'}">${esc(sized ? (p.variant_name || p.product_name) : p.product_name)}</div>
+            <small class="text-muted">${money(rate)} per ${esc(p.unit)}${!sized && p.description ? ' • ' + esc(p.description) : ''}</small>
           </div>
           <div class="input-group input-group-sm" style="width: 150px;">
             <input type="number" min="0" step="${WHOLE.includes(p.unit) ? 1 : 0.5}" class="form-control od-qty text-end" data-id="${p.id}"
-              data-price="${p.custom_price}" data-unit="${esc(p.unit)}" data-name="${esc(p.product_name)}" placeholder="0" inputmode="decimal">
+              data-price="${rate}" data-unit="${esc(p.unit)}" data-name="${esc(p.product_name)}" placeholder="0" inputmode="decimal"
+              value="${cur ? cur.quantity : ''}">
             <span class="input-group-text">${esc(p.unit)}</span>
           </div>
-        </div>`).join('');
+        </div>`;
+      };
+      document.getElementById('od-items').innerHTML = [...groups.entries()].map(([name, items]) => {
+        const sized = items.length > 1 || items.some(p => p.variant_name);
+        return `<div class="border-bottom pb-1 mb-1">
+          ${sized ? `<div class="fw-bold pt-2">${esc(name)}</div>${items[0].description ? `<small class="text-muted">${esc(items[0].description)}</small>` : ''}` : ''}
+          ${items.map(p => row(p, sized)).join('')}
+        </div>`;
+      }).join('');
       document.querySelectorAll('.od-qty').forEach(i => i.addEventListener('input', odTotal));
       document.getElementById('od-error').innerText = '';
       odTotal();
@@ -564,32 +601,37 @@
       document.getElementById('od-total').innerText = money(Math.round(total * 100) / 100);
     }
 
-    window.saveDay = async function() {
+    window.saveDay = async function(cancel = false) {
       const items = odItems();
       const err = document.getElementById('od-error');
-      const bad = items.find(i => i.quantity < 0 || (WHOLE.includes(i.unit) && !Number.isInteger(i.quantity)));
-      if (bad) {
-        err.innerText = bad.quantity < 0 ? 'Quantity cannot be negative.' : `${bad.name} is sold per ${bad.unit}; enter a whole number.`;
-        return;
-      }
-      const wanted = items.filter(i => i.quantity > 0);
-      if (!wanted.length) {
-        err.innerText = 'Enter a quantity for at least one product.';
-        return;
-      }
-      const total = wanted.reduce((s, i) => s + i.quantity * i.price, 0);
       const dayText = new Date(orderDay + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
-      const lines = wanted.map(i => '- ' + qtyU(i.quantity, i.unit) + ' ' + i.name).join('\n');
-      if (!confirm('Order for ' + dayText + ':\n' + lines + '\nTotal ' + money(total) + '\n\n' +
-          'Once placed, the order cannot be changed or cancelled from the app. Please call the dairy if you need a change.')) return;
+      if (cancel) {
+        if (!confirm(`Cancel your order for ${dayText}? No milk will come on this day.`)) return;
+      } else {
+        const bad = items.find(i => i.quantity < 0 || (WHOLE.includes(i.unit) && !Number.isInteger(i.quantity)));
+        if (bad) {
+          err.innerText = bad.quantity < 0 ? 'Quantity cannot be negative.' : `${bad.name} is sold per ${bad.unit}; enter a whole number.`;
+          return;
+        }
+        const wanted = items.filter(i => i.quantity > 0);
+        if (!wanted.length) {
+          err.innerText = 'Enter a quantity for at least one product.';
+          return;
+        }
+        const total = wanted.reduce((s, i) => s + i.quantity * i.price, 0);
+        const lines = wanted.map(i => '- ' + qtyU(i.quantity, i.unit) + ' ' + i.name + ' = ' + money(i.quantity * i.price)).join('\n');
+        if (!confirm('Order for ' + dayText + ':\n' + lines + '\nTotal ' + money(total) + '\n\n' +
+            'You can change or cancel it till the cut-off time. After that it is locked.')) return;
+      }
       try {
-        await DairyAPI.setMyDay(orderDay, wanted.map(i => ({ product_id: i.product_id, quantity: i.quantity })));
+        // All products are sent: 0 removes a product from the order, all 0 cancels it
+        await DairyAPI.setMyDay(orderDay, items.map(i => ({ product_id: i.product_id, quantity: cancel ? 0 : Math.max(0, i.quantity) })));
         bootstrap.Modal.getInstance(document.getElementById('modalDayOrder')).hide();
         const fresh = await DairyAPI.myDays(7);
         renderDays(fresh);
         showTomorrow(fresh);
       } catch (e) {
-        err.innerText = 'Could not place the order: ' + e.message;
+        err.innerText = 'Could not save the order: ' + e.message;
       }
     };
 
@@ -600,7 +642,7 @@
       const iso = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
       if (!confirm(`Order ${itemsText(lastOrder.items)} for tomorrow (${fmtDate(iso)})?
 
-Once placed, the order cannot be changed or cancelled from the app.`)) return;
+This replaces any order you already have for tomorrow. You can change or cancel it till the cut-off time.`)) return;
       try {
         const res = await DairyAPI.placeMyOrder({
           delivery_date: iso,

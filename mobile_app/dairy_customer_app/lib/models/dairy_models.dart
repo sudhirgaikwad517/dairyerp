@@ -19,7 +19,8 @@ class CustomerProfile {
   final String dairyContact;
   final String dairyEmail;
   final String upiNumber;
-  final String orderCutoffTime; // "HH:MM", last time to order for the next day
+  final String orderCutoffTime; // "HH:MM", last time to place / change an order
+  final String orderCutoffText; // '1:00 AM on the delivery day'
   final String bankAccountName;
   final String bankName;
   final String bankAccountNumber;
@@ -45,6 +46,7 @@ class CustomerProfile {
     this.dairyEmail = '',
     required this.upiNumber,
     required this.orderCutoffTime,
+    this.orderCutoffText = '',
     required this.bankAccountName,
     required this.bankName,
     required this.bankAccountNumber,
@@ -74,6 +76,7 @@ class CustomerProfile {
       dairyEmail: json['dairy_email'] ?? '',
       upiNumber: json['upi_number'] ?? '',
       orderCutoffTime: json['order_cutoff_time'] ?? '21:00',
+      orderCutoffText: json['order_cutoff_text'] ?? '',
       bankAccountName: json['bank_account_name'] ?? '',
       bankName: json['bank_name'] ?? '',
       bankAccountNumber: json['bank_account_number'] ?? '',
@@ -93,6 +96,8 @@ class ProductItem {
   final double b2bPrice;
   final double price; // this customer's rate (GST included)
   final String description;
+  final String groupName; // sizes of one product share it ('Cow Milk Brand Pouch')
+  final String variantName; // the size, e.g. '500 ML'; empty for a product without sizes
 
   ProductItem({
     required this.id,
@@ -104,9 +109,14 @@ class ProductItem {
     required this.b2bPrice,
     required this.price,
     this.description = '',
+    this.groupName = '',
+    this.variantName = '',
   });
 
   bool get isSpecialPrice => price < b2bPrice;
+
+  /// Group heading in the order form (the product's own name when it has no sizes)
+  String get group => groupName.isNotEmpty ? groupName : name;
   bool get whole => wholeUnit(unit);
 
   factory ProductItem.fromJson(Map<String, dynamic> json) {
@@ -120,6 +130,8 @@ class ProductItem {
       b2bPrice: _num(json['standard_b2b_price']),
       price: _num(json['custom_price']),
       description: json['description'] ?? '',
+      groupName: json['group_name'] ?? '',
+      variantName: json['variant_name'] ?? '',
     );
   }
 }
@@ -131,6 +143,7 @@ class OrderLine {
   final double quantity;
   final double unitPrice;
   final double totalAmount;
+  final double? deliveredQuantity; // set once delivered
 
   OrderLine({
     required this.productId,
@@ -139,6 +152,7 @@ class OrderLine {
     required this.quantity,
     required this.unitPrice,
     required this.totalAmount,
+    this.deliveredQuantity,
   });
 
   factory OrderLine.fromJson(Map<String, dynamic> json) {
@@ -149,6 +163,7 @@ class OrderLine {
       quantity: _num(json['quantity']),
       unitPrice: _num(json['unit_price']),
       totalAmount: _num(json['total_amount']),
+      deliveredQuantity: json['delivered_quantity'] == null ? null : _num(json['delivered_quantity']),
     );
   }
 }
@@ -254,10 +269,12 @@ class DayItem {
   final String unit;
   final double quantity;
   final double rate;
+  final double amount;
   final double? deliveredQuantity;
 
   DayItem({required this.productId, required this.productName, required this.unit, required this.quantity, required this.rate,
-      this.deliveredQuantity});
+      double? amount, this.deliveredQuantity})
+      : amount = amount ?? quantity * rate;
 
   factory DayItem.fromJson(Map<String, dynamic> json) => DayItem(
         productId: json['product_id'],
@@ -265,6 +282,7 @@ class DayItem {
         unit: json['unit'] ?? 'L',
         quantity: _num(json['quantity']),
         rate: _num(json['rate']),
+        amount: json['amount'] == null ? null : _num(json['amount']),
         deliveredQuantity: json['delivered_quantity'] == null ? null : _num(json['delivered_quantity']),
       );
 }
@@ -286,7 +304,8 @@ class DayPlan {
   final double totalAmount;
   final String source; // order | none
   final String status;
-  final bool editable;
+  final bool editable; // the customer can still place / change / cancel (till the cut-off)
+  final bool canCancel;
   final bool ordersClosed;
   final DateTime orderDeadline; // last time the customer can place / change this day's order
   final double? deliveredLitres;
@@ -300,6 +319,7 @@ class DayPlan {
     required this.source,
     required this.status,
     required this.editable,
+    this.canCancel = false,
     required this.ordersClosed,
     required this.orderDeadline,
     required this.deliveredLitres,
@@ -347,6 +367,7 @@ class DayPlan {
         source: json['source'] ?? 'none',
         status: json['status'] ?? '',
         editable: json['editable'] == true,
+        canCancel: json['can_cancel'] == true,
         ordersClosed: json['orders_closed'] == true,
         orderDeadline: DateTime.parse(json['order_deadline']),
         deliveredLitres: json['delivery'] == null ? null : _num(json['delivery']['delivered_litres']),

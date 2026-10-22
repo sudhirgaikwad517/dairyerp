@@ -20,8 +20,8 @@ from backend.app.services.billing_service import (bill_to_dict, build_statement,
 from backend.app.services.claims_service import (
     CLAIM_REASONS, CLAIM_WINDOW_DAYS, claim_dict, claimed_so_far, create_claim, day_delivery, day_products, list_claims
 )
-from backend.app.services.order_lines import whole_unit
-from backend.app.services.daily_orders import customer_days, set_day_quantity
+from backend.app.services.order_lines import litres_per_unit, whole_unit
+from backend.app.services.daily_orders import customer_days, cutoff_same_day, cutoff_text, cutoff_time, set_day_quantity
 from backend.app.services.order_pricing import customer_unit_price, fill_order_items
 
 router = APIRouter(prefix="/me", tags=["Customer App"])
@@ -61,7 +61,9 @@ def _order_dict(db: Session, o: Order) -> dict:
         p = db.query(Product).filter(Product.id == i.product_id).first()
         items.append({"product_id": i.product_id, "product_name": p.product_name if p else "Product",
                       "unit": p.unit if p else "L", "quantity": i.ordered_quantity,
-                      "unit_price": i.unit_price, "total_amount": i.total_amount})
+                      "unit_price": i.unit_price, "total_amount": i.total_amount,
+                      # What reached the customer, once delivered
+                      "delivered_quantity": i.delivered_quantity if o.status in ("delivered", "invoiced", "paid") else None})
     return {"id": o.id, "order_number": o.order_number, "delivery_date": o.delivery_date.isoformat(),
             "status": o.status, "total_litres": o.total_litres, "total_amount": o.total_amount,
             "payment_status": o.payment_status, "is_standing_order": o.is_standing_order, "items": items}
@@ -100,6 +102,9 @@ def profile(customer: Customer = Depends(get_current_customer), db: Session = De
         "bank_ifsc": dairy.bank_ifsc,
         "bank_branch": dairy.bank_branch,
         "order_cutoff_time": dairy.order_cutoff_time or "21:00",
+        # 'Order or change by 1:00 AM on the delivery day' for the app's banner
+        "order_cutoff_text": cutoff_text(cutoff_time(db)),
+        "order_cutoff_same_day": cutoff_same_day(cutoff_time(db)),
     }
 
 
@@ -109,10 +114,18 @@ def products(customer: Customer = Depends(get_current_customer), db: Session = D
     for p in db.query(Product).filter(Product.is_active == True).order_by(Product.sort_order, Product.id).all():
         price = customer_unit_price(db, customer.id, p)
         result.append({"id": p.id, "sku": p.sku, "product_name": p.product_name, "category": p.category,
+                       # Sizes of one product (500 ML, 1 L) share group_name; shown together in the order form
+                       "group_name": p.group_name or p.product_name, "variant_name": p.variant_name,
+                       "litres_per_unit": litres_per_unit(p),
                        "unit": p.unit, "whole": whole_unit(p.unit), "pack_size": p.pack_size, "mrp": p.mrp,
                        "description": p.description, "gst_rate": p.gst_rate or 0.0,
                        "standard_b2b_price": p.standard_b2b_price, "custom_price": price,
                        "min_order_quantity": p.min_order_quantity})
+    # Products in the dairy's order; the sizes of a product together, smallest first
+    first_seen = {}
+    for i, r in enumerate(result):
+        first_seen.setdefault(r["group_name"].lower(), i)
+    result.sort(key=lambda r: (first_seen[r["group_name"].lower()], r["litres_per_unit"] or 0, r["id"]))
     return result
 
 

@@ -38,7 +38,8 @@ PLACEHOLDERS = {
     "dairy_phone": "Dairy phone numbers",
     "dairy_email": "Dairy contact email",
     "dairy_contact_block": "Box with name, address, phone and email (put it on its own line)",
-    "cutoff_time": "Order cut-off time, e.g. 9:00 PM",
+    "cutoff_time": "Order cut-off time, e.g. 1:00 AM",
+    "cutoff_rule": "When orders lock, e.g. 1:00 AM on the delivery day",
     "dispatch_time": "Automatic dispatch time, e.g. 4:00 AM",
     "claim_days": "Days a customer has to report a problem",
     "deletion_days": "Days to close an account after a request",
@@ -119,8 +120,9 @@ For complaints about your information, contact the Dairy (details above). If the
 
 ## 2. Ordering milk
 
-- Order for a day before **{cutoff_time}** on the evening before. After that time, orders for that day are closed in the App; please call the Dairy.
-- **One order per day, placed once.** After you place an order you cannot change or cancel it in the App. Only the Dairy can change or cancel it, and only before it is sent for delivery.
+- Order for a day before **{cutoff_rule}**. Till then you can change the quantities or cancel the order in the App.
+- **After that time the order is locked** and you can only view it. Please call the Dairy for any change; the Dairy can change it only before it is sent for delivery.
+- One order per day. Your bill shows each order on the day it was ordered for: milk delivered on the morning of the 24th is billed on the 23rd.
 - Orders are sent to the delivery team automatically at **{dispatch_time}** on the delivery day. If the Dairy cannot send milk for a reason beyond its control, you will get a notice with the reason.
 
 ## 3. Delivery
@@ -179,7 +181,7 @@ def _clock(t) -> str:
 def placeholder_values(db: Session) -> Dict[str, str]:
     from backend.app.services.billing_service import get_business_profile
     from backend.app.services.claims_service import CLAIM_WINDOW_DAYS
-    from backend.app.services.daily_orders import cutoff_time
+    from backend.app.services.daily_orders import cutoff_text, cutoff_time
     from backend.app.services.dispatch_control import dispatch_time
     p = get_business_profile(db)
     return {
@@ -188,6 +190,7 @@ def placeholder_values(db: Session) -> Dict[str, str]:
         "dairy_phone": p.contact_numbers or "",
         "dairy_email": p.contact_email or "",
         "cutoff_time": _clock(cutoff_time(db)),
+        "cutoff_rule": cutoff_text(cutoff_time(db)),
         "dispatch_time": _clock(dispatch_time(db)),
         "claim_days": str(CLAIM_WINDOW_DAYS),
         "deletion_days": str(DELETION_DAYS),

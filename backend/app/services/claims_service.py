@@ -12,7 +12,7 @@ from backend.app.models.entities import (
 from backend.app.services import notifications
 from backend.app.services.attachments import attachments_for
 from backend.app.services.order_lines import order_lines, whole_unit
-from backend.app.services.billing_service import (bill_figures, find_overlapping_bill, move_excess_to_other_bills,
+from backend.app.services.billing_service import (bill_figures, bill_for_delivery_day, line_day, move_excess_to_other_bills,
                                                   recalculate_ledger, refresh_bill, undo_excess_move)
 
 CLAIM_REASONS = {
@@ -203,7 +203,7 @@ def approve_claim(db: Session, claim: DeliveryClaim, approved_qty: float, note: 
 
     # Deduct from the bill. Already billed for that day? Reduce that bill now with a credit note.
     # Otherwise it is deducted automatically when that period's bill is generated.
-    bill = find_overlapping_bill(db, claim.customer_id, claim.issue_date, claim.issue_date)
+    bill = bill_for_delivery_day(db, claim.customer_id, claim.issue_date)
     if bill:
         db.add(CustomerLedger(
             customer_id=customer.id, transaction_date=date.today(), transaction_type="credit_note",
@@ -305,7 +305,7 @@ def reopen_claim(db: Session, claim: DeliveryClaim, reason: Optional[str], admin
             qty, amount = claim.approved_qty or 0.0, claim.credit_amount or 0.0
             lines = json.loads(bill.bill_lines) if bill.bill_lines else []
             for line in lines:
-                if line["date"] == claim.issue_date.isoformat() and line.get("product_id") == claim.product_id:
+                if line["date"] == line_day(bill, claim.issue_date).isoformat() and line.get("product_id") == claim.product_id:
                     line["qty"] = round(line["qty"] + qty, 2)
                     line["amount"] = round(line["amount"] + amount, 2)
                     line["claim_qty"] = round(max(0.0, line.get("claim_qty", 0.0) - qty), 2)
@@ -313,8 +313,10 @@ def reopen_claim(db: Session, claim: DeliveryClaim, reason: Optional[str], admin
                     line["rate"] = round(line["amount"] / line["qty"], 2) if line["qty"] else line["rate"]
                     break
             bill.bill_lines = json.dumps(lines)
-            if (next((l for l in lines if l.get("product_id") == claim.product_id), {}).get("unit") or "").upper() == "L":
-                bill.total_litres = round((bill.total_litres or 0.0) + qty, 3)
+            line = next((l for l in lines if l.get("product_id") == claim.product_id), None)
+            if line:
+                lpu = line.get("litres_per_unit", 1.0 if (line.get("unit") or "").upper() == "L" else 0.0)
+                bill.total_litres = round((bill.total_litres or 0.0) + qty * lpu, 3)
             bill.subtotal = round((bill.subtotal or 0.0) + amount, 2)
             bill.total_amount = round((bill.total_amount or 0.0) + amount, 2)
             entry = db.query(CustomerLedger).filter(
@@ -425,7 +427,7 @@ def claim_dict(db: Session, claim: DeliveryClaim, with_details: bool = False) ->
                 "signature": d.customer_signature_url if (d.customer_signature_url or "").startswith("data:image/") else None,
                 "photo_ids": [a.id for a in attachments_for(db, "delivery", d.id)],
             })
-        billed = find_overlapping_bill(db, claim.customer_id, claim.issue_date, claim.issue_date)
+        billed = bill_for_delivery_day(db, claim.customer_id, claim.issue_date)
         data.update({
             "billed_in": billed.invoice_number if billed else None,
             # Is that bill already paid? Then a bill deduction becomes advance for the next bill

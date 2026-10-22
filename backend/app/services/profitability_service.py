@@ -47,7 +47,7 @@ def calculate_customer_profitability(db: Session, start: date, end: date,
                 no_cost_price.add(r["product_name"])
             cost[o.customer_id] = cost.get(o.customer_id, 0.0) + r["delivered"] * price
             if r["is_litre"]:
-                litres[o.customer_id] = litres.get(o.customer_id, 0.0) + r["delivered"]
+                litres[o.customer_id] = litres.get(o.customer_id, 0.0) + r["delivered_litres"]
 
     # Transport: each finished day's total cost shared by the litres each customer got that day
     transport = customer_transport_share(db, start, end, customer_id)

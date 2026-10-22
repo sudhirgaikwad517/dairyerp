@@ -774,3 +774,8 @@ body {
 .dev-credit-corner { position: fixed; right: 12px; bottom: 8px; z-index: 5; }
 @media (max-width: 767.98px) { .dev-credit-corner { position: static; display: block; text-align: center; padding: 8px 0 14px; } }
 @media print { .dev-credit, .dev-credit-corner { display: none !important; } }
+
+/* Products: a product with several sizes shows a header row, then one row per size */
+.table-dairy tr.product-group-row td { background: rgba(14, 127, 181, 0.06); border-bottom: 0; }
+.table-dairy tr.product-size-row td { padding-top: 6px; padding-bottom: 6px; }
+.product-sizes-table th, .product-sizes-table td { padding: 6px 8px; }

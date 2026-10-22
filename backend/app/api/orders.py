@@ -10,7 +10,7 @@ from backend.app.database import get_db
 from backend.app.models.entities import Customer, Delivery, DeliveryRoute, DeliveryTrip, Order, OrderItem, Product, User
 from backend.app.services.attachments import attachments_for
 from backend.app.core.security import require_admin
-from backend.app.services.billing_service import find_overlapping_bill, get_business_profile
+from backend.app.services.billing_service import bill_for_delivery_day, get_business_profile
 from backend.app.services.daily_orders import dispatch_day, order_deadline, set_day_quantity
 from backend.app.services.dispatch_control import (DISPATCH_LOCK, check_manual_dispatch, dispatch_status,
                                                     release_hold, set_hold)
@@ -57,8 +57,8 @@ def _order_dict(db: Session, o: Order, products, routes, drivers) -> dict:
     delivered = o.status in BILLED_STATUSES
     # Same per-product rule as the bill: only what reached the customer is billed
     rows = order_lines(db, [o], products).get(o.id, [])
-    delivered_litres = round(sum(r["delivered"] for r in rows if r["is_litre"]), 3) if delivered else None
-    bill = find_overlapping_bill(db, o.customer_id, o.delivery_date, o.delivery_date) if delivered else None
+    delivered_litres = round(sum(r["delivered_litres"] for r in rows), 3) if delivered else None
+    bill = bill_for_delivery_day(db, o.customer_id, o.delivery_date) if delivered else None
 
     items_detail = []
     for r in rows:

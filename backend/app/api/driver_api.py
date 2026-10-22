@@ -6,14 +6,14 @@ from typing import Optional, List
 from datetime import datetime, date
 from backend.app.core.security import ADMIN_ROLES, require_driver
 from backend.app.services.attachments import attachments_for, save_photo
-from backend.app.services.billing_service import apply_payment_to_bills, find_overlapping_bill, recalculate_ledger
+from backend.app.services.billing_service import apply_payment_to_bills, bill_for_delivery_day, recalculate_ledger
 from backend.app.services import notifications
 from backend.app.services.dispatch_control import dispatch_status
 from backend.app.database import get_db
 from backend.app.models.entities import (
     DeliveryTrip, Delivery, Order, OrderItem, Product, Customer, Payment, CustomerLedger, User, DeliveryIssue
 )
-from backend.app.services.order_lines import is_litre, whole_unit
+from backend.app.services.order_lines import is_litre, litres_per_unit, whole_unit
 
 router = APIRouter(prefix="/driver", tags=["Driver Web Portal"])
 
@@ -195,7 +195,7 @@ def complete_delivery_stop(
     if user.role not in ADMIN_ROLES and not _driver_deliveries_query(db, user.id).filter(Delivery.id == delivery.id).first():
         raise HTTPException(status_code=403, detail="This delivery is not assigned to you")
     if delivery.order:
-        billed = find_overlapping_bill(db, delivery.customer_id, delivery.order.delivery_date, delivery.order.delivery_date)
+        billed = bill_for_delivery_day(db, delivery.customer_id, delivery.order.delivery_date)
         if billed:
             raise HTTPException(status_code=400, detail=f"This day is already billed in {billed.invoice_number}; "
                                                         f"ask the dairy office to correct it")
@@ -238,8 +238,9 @@ def complete_delivery_stop(
     for i in o_items:
         i.delivered_quantity = round(given[i.id], 3)
     litre_items = [i for i in o_items if is_litre(products.get(i.product_id))]
-    delivery.total_ordered_litres = round(sum(i.ordered_quantity or 0 for i in litre_items), 3)
-    delivery.total_delivered_litres = round(sum(i.delivered_quantity for i in litre_items), 3)
+    lpu = lambda i: litres_per_unit(products.get(i.product_id))
+    delivery.total_ordered_litres = round(sum((i.ordered_quantity or 0) * lpu(i) for i in litre_items), 3)
+    delivery.total_delivered_litres = round(sum(i.delivered_quantity * lpu(i) for i in litre_items), 3)
     delivery.total_shortage_litres = round(max(0.0, delivery.total_ordered_litres - delivery.total_delivered_litres), 3)
     delivery.shortage_reason = payload.shortage_reason if any_short else "none"
     delivery.shortage_notes = payload.shortage_notes

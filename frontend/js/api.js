@@ -286,6 +286,11 @@ const DairyAPI = {
     return id ? postJSON(`/products/${id}`, data, 'PUT') : postJSON('/products/', data);
   },
 
+  // A product with all its sizes (500 ML, 1 L...), saved together
+  saveProductGroup(data) {
+    return postJSON('/products/group', data, 'PUT');
+  },
+
   setProductActive(id, isActive) {
     return postJSON(`/products/${id}/active`, { is_active: isActive }, 'PUT');
   },

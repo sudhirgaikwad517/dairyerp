@@ -4,7 +4,7 @@ from typing import Iterable, Optional, Tuple
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from backend.app.models.entities import AuditLog, Customer, CustomerPricing, Order, OrderItem, Product
-from backend.app.services.order_lines import gst_split
+from backend.app.services.order_lines import gst_split, litres_per_unit
 
 
 def customer_unit_price(db: Session, customer_id: int, product: Product) -> float:
@@ -47,8 +47,7 @@ def fill_order_items(db: Session, order: Order, customer: Customer, items: Itera
 
         subtotal += item_total
         tax_total += item_tax
-        if (product.unit or "").upper() == "L":
-            total_litres += quantity
+        total_litres += quantity * litres_per_unit(product)
 
     transport_charge = 0.0
     if customer.transport_allocation_method == "customer_specific" and customer.negotiated_transport_rate_per_litre > 0:

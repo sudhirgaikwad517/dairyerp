@@ -16,7 +16,7 @@ String qty(double value) => _plain.format(value);
 String qtyUnit(double value, String unit) => '${qty(value)} $unit'.trim();
 
 /// Units counted in whole numbers (no half packets)
-bool wholeUnit(String unit) => const {'pcs', 'packet', 'box'}.contains(unit);
+bool wholeUnit(String unit) => const {'pcs', 'packet', 'box', 'pouch', 'bottle'}.contains(unit);
 
 /// 2026-09-30 -> 30 Sep 2026
 String niceDate(String iso) {

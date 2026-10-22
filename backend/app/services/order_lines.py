@@ -18,6 +18,8 @@ DONE_DELIVERY = ("delivered", "partially_delivered")
 # Units a product can be sold in. Whole units cannot be ordered in fractions.
 UNITS = {
     "L": {"label": "Litre", "whole": False},
+    "pouch": {"label": "Pouch", "whole": True},
+    "bottle": {"label": "Bottle", "whole": True},
     "kg": {"label": "Kg", "whole": False},
     "pcs": {"label": "Piece", "whole": True},
     "packet": {"label": "Packet", "whole": True},
@@ -25,8 +27,18 @@ UNITS = {
 }
 
 
+def litres_per_unit(product: Optional[Product]) -> float:
+    """Litres of milk in one unit: the product's own figure (0.5 for a 500 ML pouch), 1 for litres, else 0."""
+    if not product:
+        return 0.0
+    if product.litres_per_unit:
+        return float(product.litres_per_unit)
+    return 1.0 if (product.unit or "").strip().upper() == "L" else 0.0
+
+
 def is_litre(product: Optional[Product]) -> bool:
-    return bool(product) and (product.unit or "").strip().upper() == "L"
+    """Counts as milk in litre totals (sold per litre, or packs with litres per unit)."""
+    return litres_per_unit(product) > 0
 
 
 def whole_unit(unit: Optional[str]) -> bool:
@@ -93,13 +105,18 @@ def order_lines(db: Session, orders: List[Order], products: Optional[Dict[int, P
             p = products.get(i.product_id)
             delivered = item_delivered(i, o, factor)
             rate = round(i.unit_price or 0.0, 2)
+            lpu = litres_per_unit(p)
             rows.append({
                 "item": i, "product": p, "product_id": i.product_id,
                 "product_name": p.product_name if p else f"Product #{i.product_id}",
                 "unit": p.unit if p else "",
                 "is_litre": i.product_id in litre_ids,
+                "litres_per_unit": lpu,
                 "ordered": round(i.ordered_quantity or 0.0, 3),
                 "delivered": delivered,
+                # Litres of milk (pouches x litres per pouch); 0 for products that are not milk
+                "ordered_litres": round((i.ordered_quantity or 0.0) * lpu, 3),
+                "delivered_litres": round(delivered * lpu, 3),
                 "rate": rate,
                 "ordered_amount": round((i.ordered_quantity or 0.0) * rate, 2),
                 "amount": round(delivered * rate, 2),

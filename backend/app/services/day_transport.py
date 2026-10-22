@@ -57,7 +57,7 @@ def delivered_by_day(db: Session, start: date, end: date) -> Dict[date, Dict[str
         if o.status not in SOLD_STATUSES:
             day["pending"] += 1
             continue
-        got = sum(r["delivered"] for r in milk)  # litres actually handed over, same as the bills
+        got = sum(r["delivered_litres"] for r in milk)  # litres actually handed over, same as the bills
         if got > 0:
             day["litres"] += got
             day["customers"].add(o.customer_id)

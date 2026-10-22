@@ -116,7 +116,7 @@ const isDone = (stop) => stop.status === 'delivered' || stop.status === 'partial
 
 // What happened at a stop, for the badge and card colour
 const qtyU = (n, unit) => `${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 })} ${unit || ''}`.trim();
-const WHOLE = ['pcs', 'packet', 'box'];
+const WHOLE = ['pcs', 'packet', 'box', 'pouch', 'bottle'];
 const isShort = (stop) => (stop.items || []).some(i => i.delivered !== null && i.delivered < i.ordered);
 const nothingGiven = (stop) => (stop.items || []).length > 0 && stop.items.every(i => (i.delivered || 0) <= 0);
 

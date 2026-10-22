@@ -12,7 +12,7 @@ from backend.app.models.entities import Invoice
 from backend.app.services.bill_pdf import render_bills_pdf
 from backend.app.services.billing_service import (
     bill_to_dict, delete_bill, generate_bills, get_business_profile, period_label,
-    preview_bills, record_bill_payment, resolve_bill_period
+    delivery_range, preview_bills, record_bill_payment, resolve_bill_period
 )
 
 router = APIRouter(tags=["Billing"])
@@ -45,13 +45,19 @@ class BusinessProfileSchema(BaseModel):
     bank_ifsc: Optional[str] = None
     bank_branch: Optional[str] = None
     upi_number: Optional[str] = None
-    order_cutoff_time: Optional[str] = "21:00"  # customers' last time (HH:MM) to order for the next day
+    # Customers' last time (HH:MM) to place / change / cancel: before noon = on the delivery day (01:00),
+    # from noon = the evening before (21:00). See daily_orders.order_deadline.
+    order_cutoff_time: Optional[str] = "21:00"
     dispatch_time: Optional[str] = "04:00"  # each day's orders go to the delivery boys at this time (HH:MM)
 
 
 def _period_response(bill_type: str, start: date, end: date):
+    first, last = delivery_range(start, end)
     return {"bill_type": bill_type, "start_date": start.isoformat(), "end_date": end.isoformat(),
-            "label": period_label(bill_type, start, end)}
+            "label": period_label(bill_type, start, end),
+            # The period is in order days; its milk is delivered one day later
+            "deliveries_from": first.isoformat(), "deliveries_to": last.isoformat(),
+            "ready": last <= date.today()}
 
 
 @router.get("/billing/preview")
@@ -189,6 +195,10 @@ def update_profile(payload: BusinessProfileSchema, db: Session = Depends(get_db)
         raise HTTPException(status_code=400, detail="Business name is required")
     payload.order_cutoff_time = _hhmm(payload.order_cutoff_time or "21:00", "Order cut-off time must be like 21:00")
     payload.dispatch_time = _hhmm(payload.dispatch_time or "04:00", "Dispatch time must be like 04:00")
+    if payload.order_cutoff_time < "12:00" and payload.order_cutoff_time >= payload.dispatch_time:
+        raise HTTPException(status_code=400, detail=(
+            f"The order cut-off ({payload.order_cutoff_time}) must be before the dispatch time "
+            f"({payload.dispatch_time}), so orders are locked before they go to the delivery boys."))
     email = (payload.contact_email or "").strip()
     if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise HTTPException(status_code=400, detail="Enter a valid contact email, like info@yourdairy.com")

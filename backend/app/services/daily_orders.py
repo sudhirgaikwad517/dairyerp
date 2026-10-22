@@ -2,8 +2,8 @@
 Day-by-day ordering (one order per customer per day) and dispatch (turning a day's orders into delivery trips).
 
 Only real orders exist: a customer gets milk on a day only if they (or the admin) ordered for that day.
-Customers can place a day's order until the cut-off time on the evening before (set by the admin,
-default 21:00). Once placed, a customer cannot change or cancel it; only the admin can.
+Customers can place, change or cancel a day's order until the cut-off time set by the admin (see
+order_deadline). After that it is locked for them (read only); only the admin can change it.
 """
 from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -34,9 +34,24 @@ def cutoff_time(db: Session) -> time:
         return time(21, 0)
 
 
+def cutoff_same_day(cutoff: time) -> bool:
+    """
+    A cut-off before noon (e.g. 01:00) is after midnight, on the delivery day itself: orders for the
+    24th are open till 1 AM on the 24th. From noon on (e.g. 21:00) it is the evening before.
+    """
+    return cutoff < time(12, 0)
+
+
 def order_deadline(db: Session, day: date, cutoff: Optional[time] = None) -> datetime:
-    """Last moment a customer can place / change the order for `day`: cut-off time on the previous day."""
-    return datetime.combine(day - timedelta(days=1), cutoff or cutoff_time(db))
+    """Last moment a customer can place / change / cancel the order for `day`."""
+    cutoff = cutoff or cutoff_time(db)
+    return datetime.combine(day if cutoff_same_day(cutoff) else day - timedelta(days=1), cutoff)
+
+
+def cutoff_text(cutoff: time) -> str:
+    """'1:00 AM on the delivery day' / '9:00 PM the evening before', for the app and the terms."""
+    clock = cutoff.strftime("%I:%M %p").lstrip("0")
+    return f"{clock} on the delivery day" if cutoff_same_day(cutoff) else f"{clock} the evening before"
 
 
 def _db_weekday(day: date) -> int:
@@ -73,8 +88,8 @@ def customer_days(db: Session, customer: Customer, start: date, days: int) -> Li
             order_active = order is not None
         deadline = order_deadline(db, day, cutoff)
         open_for_orders = now <= deadline
-        # One order per day, placed once: after that only the dairy can change it
-        editable = open_for_orders and not order_active
+        # Till the cut-off the customer can place, change or cancel; not once it is on a delivery trip
+        editable = open_for_orders and (not order_active or order.status in EDITABLE_STATUSES)
         items = _order_items(db, order) if order_active else []
         delivery = None
         if order_active:
@@ -98,7 +113,7 @@ def customer_days(db: Session, customer: Customer, start: date, days: int) -> Li
             "status": status,
             "order_number": order.order_number if order_active else None,
             "editable": editable,
-            "can_cancel": False,  # customers cannot cancel; only the admin can
+            "can_cancel": editable and order_active,
             "order_deadline": deadline.isoformat(timespec="minutes"),
             "orders_closed": not open_for_orders,
             "delivery": delivery,
@@ -109,9 +124,9 @@ def customer_days(db: Session, customer: Customer, start: date, days: int) -> Li
 def set_day_quantity(db: Session, customer: Customer, day: date, items: List[Tuple[int, float]],
                      placed_by: str, is_admin: bool = False) -> Order:
     """
-    Create or change the customer's order for one day.
-    Customers: place it once, until the cut-off time the evening before; they cannot change or cancel it.
-    Admin: any time before dispatch; all quantities 0 cancels the order.
+    Create or change the customer's order for one day. All quantities 0 cancels the order.
+    Customers: place, change or cancel until the cut-off time (order_deadline); then it is locked.
+    Admin: any time before dispatch.
     """
     now = datetime.now()
     today = now.date()
@@ -124,10 +139,11 @@ def set_day_quantity(db: Session, customer: Customer, day: date, items: List[Tup
         if now > deadline:
             raise HTTPException(
                 status_code=400,
-                detail=f"Orders for {day:%d %b} closed at {deadline:%I:%M %p} on {deadline:%d %b}. Please call the dairy."
+                detail=f"Orders for {day:%d %b} closed at {deadline:%I:%M %p} on {deadline:%d %b}. "
+                       f"The order is locked now; please call the dairy."
             )
-    from backend.app.services.billing_service import find_overlapping_bill  # avoid import cycle
-    billed = find_overlapping_bill(db, customer.id, day, day)
+    from backend.app.services.billing_service import bill_for_delivery_day  # avoid import cycle
+    billed = bill_for_delivery_day(db, customer.id, day)
     if billed:
         raise HTTPException(status_code=400, detail=f"{day:%d %b} is already billed in {billed.invoice_number}. "
                                                     f"Delete that bill first to change this day.")
@@ -150,13 +166,6 @@ def set_day_quantity(db: Session, customer: Customer, day: date, items: List[Tup
         if qty > 100000:
             raise HTTPException(status_code=400, detail=f"Quantity for {p.product_name} is too large")
     wanted = [(pid, round(qty, 3)) for pid, qty in items if qty and qty > 0]
-    if not wanted and not is_admin:
-        raise HTTPException(status_code=400, detail="Add a quantity for at least one product.")
-
-    if not is_admin and order and order.status != "cancelled":
-        raise HTTPException(status_code=400, detail=(
-            f"You have already ordered {order_what(db, order)} for {day:%d %b}. An order cannot be changed "
-            f"once placed. Please call the dairy."))
     if order and order.status not in EDITABLE_STATUSES and order.status != "cancelled":
         raise HTTPException(status_code=400, detail="This day's milk is already out for delivery and cannot be changed")
     if not wanted and (order is None or order.status == "cancelled"):
@@ -189,8 +198,14 @@ def set_day_quantity(db: Session, customer: Customer, day: date, items: List[Tup
     what = order_what(db, order) if wanted else None
     if is_admin:
         notifications.order_set_by_dairy(db, customer, day, what, previous_what)
-    else:
-        notifications.order_confirmed(db, customer, day, what, order.total_amount or 0.0, order.order_number)
+    elif what is None:
+        notifications.order_cancelled_by_customer(db, customer, day, previous_what, order_deadline(db, day))
+    elif previous_what is None:
+        notifications.order_confirmed(db, customer, day, what, order.total_amount or 0.0, order.order_number,
+                                      order_deadline(db, day))
+    elif previous_what != what:
+        notifications.order_changed_by_customer(db, customer, day, what, previous_what, order.total_amount or 0.0,
+                                                order_deadline(db, day))
     db.commit()
     db.refresh(order)
     return order

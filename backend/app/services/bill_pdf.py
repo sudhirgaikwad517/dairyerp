@@ -31,7 +31,7 @@ def _day_label(day_iso: str, single_month: bool) -> str:
     return str(d.day) if single_month else d.strftime("%d/%m")
 
 
-UNIT_WORD = {"L": "LTR", "kg": "KG", "pcs": "PCS", "packet": "PKT", "box": "BOX"}
+UNIT_WORD = {"L": "LTR", "kg": "KG", "pcs": "PCS", "packet": "PKT", "box": "BOX", "pouch": "POUCH", "bottle": "BTL"}
 
 
 def _bill_table(bill: Dict, profile) -> Table:

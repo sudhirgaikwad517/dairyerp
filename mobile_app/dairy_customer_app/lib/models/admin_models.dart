@@ -5,6 +5,40 @@ double _d(dynamic v) => (v as num?)?.toDouble() ?? 0.0;
 double? _dn(dynamic v) => (v as num?)?.toDouble();
 List<int> _ids(dynamic v) => ((v as List?) ?? const []).map((e) => (e as num).toInt()).toList();
 
+/// One product's total for a delivery day.
+class DayProductTotal {
+  final String name;
+  final String unit;
+  final double quantity;
+  final double amount;
+
+  DayProductTotal.fromJson(Map<String, dynamic> j)
+      : name = j['product_name'] as String? ?? '',
+        unit = j['unit'] as String? ?? '',
+        quantity = _d(j['quantity']),
+        amount = _d(j['amount']);
+}
+
+/// One product line of an order (admin view).
+class AdminOrderItem {
+  final String productName;
+  final String unit;
+  final double quantity;
+  final double unitPrice;
+  final double totalAmount;
+  final double? deliveredQuantity;
+  final double? billedAmount;
+
+  AdminOrderItem.fromJson(Map<String, dynamic> j)
+      : productName = j['product_name'] as String? ?? '',
+        unit = j['unit'] as String? ?? '',
+        quantity = _d(j['quantity']),
+        unitPrice = _d(j['unit_price']),
+        totalAmount = _d(j['total_amount']),
+        deliveredQuantity = _dn(j['delivered_quantity']),
+        billedAmount = _dn(j['billed_amount']);
+}
+
 /// One delivery day at a glance.
 class DaySummary {
   final String date;
@@ -20,6 +54,7 @@ class DaySummary {
   final bool customersCanOrder;
   final DispatchInfo? dispatch;
   final String productsText; // 'Cow Milk 120 L • Paneer 3.5 kg' when more than one product
+  final List<DayProductTotal> products;
 
   DaySummary.fromJson(Map<String, dynamic> j)
       : date = j['date'] as String,
@@ -36,7 +71,8 @@ class DaySummary {
         dispatch = j['dispatch'] == null ? null : DispatchInfo.fromJson(j['dispatch'] as Map<String, dynamic>),
         productsText = ((j['products'] as List?) ?? const []).length > 1
             ? (j['products'] as List).map((p) => '${p['product_name']} ${_fmt(p['quantity'])} ${p['unit']}').join(' • ')
-            : '';
+            : '',
+        products = ((j['products'] as List?) ?? const []).map((p) => DayProductTotal.fromJson(p as Map<String, dynamic>)).toList();
 
   int get delivered => statusCounts['delivered'] ?? 0;
   int get outForDelivery => statusCounts['out_for_delivery'] ?? 0;
@@ -94,6 +130,7 @@ class AdminOrder {
   final String? shortWhat;
   final bool shortFlag;
   final bool multiProduct;
+  final List<AdminOrderItem> items;
 
   AdminOrder.fromJson(Map<String, dynamic> j)
       : id = (j['id'] as num).toInt(),
@@ -121,7 +158,8 @@ class AdminOrder {
         deliveredWhat = j['delivered_what'] as String?,
         shortWhat = j['short_what'] as String?,
         shortFlag = j['is_short'] as bool? ?? false,
-        multiProduct = j['multi_product'] as bool? ?? false;
+        multiProduct = j['multi_product'] as bool? ?? false,
+        items = ((j['items'] as List?) ?? const []).map((i) => AdminOrderItem.fromJson(i as Map<String, dynamic>)).toList();
 
   bool get isCancelled => status == 'cancelled';
   // Per product: an order of paneer only has no litres, so litres cannot tell if it was delivered

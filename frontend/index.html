@@ -12,7 +12,7 @@
   <!-- Bootstrap Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <!-- Custom Design System -->
-  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261022c">
+  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261022d">
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 </head>
@@ -475,7 +475,7 @@
         <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
           <div>
             <h2 class="h4 fw-bold text-white mb-1">Orders &amp; Dispatch</h2>
-            <p class="text-muted small mb-0">One order per customer per day. Customers order in the app until the cut-off time the evening before (Billing → Dairy Settings). After that, enter or change orders here.</p>
+            <p class="text-muted small mb-0">One order per customer per day. Customers can place, change or cancel their order in the app until the cut-off time (Billing → Dairy Settings); after that it is locked for them. You can enter or change orders here until they are dispatched.</p>
           </div>
           <div class="d-flex gap-2 align-items-center">
             <button class="btn btn-sm btn-dairy-secondary" onclick="shiftOrdersDay(-1)" title="Previous day"><i class="bi bi-chevron-left"></i></button>
@@ -1253,11 +1253,12 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <input type="hidden" id="prod-id">
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label text-muted small" for="prod-name">Product name *</label>
-              <input id="prod-name" class="form-control form-dairy-control" maxlength="100" required placeholder="e.g. Buffalo Milk">
+              <input id="prod-name" class="form-control form-dairy-control" maxlength="100" required placeholder="e.g. Cow Milk Brand Pouch" list="prod-group-names">
+              <datalist id="prod-group-names"></datalist>
+              <small class="text-dim">Without the size. Sizes go in the table below. To put this under another product as one of its sizes, pick that product's name and give this a size.</small>
             </div>
             <div class="col-md-3">
               <label class="form-label text-muted small" for="prod-category">Category</label>
@@ -1268,18 +1269,41 @@
               <label class="form-label text-muted small" for="prod-unit">Sold per *</label>
               <select id="prod-unit" class="form-select form-dairy-control">
                 <option value="L">Litre (L)</option>
+                <option value="pouch">Pouch</option>
+                <option value="bottle">Bottle</option>
+                <option value="packet">Packet</option>
                 <option value="kg">Kg</option>
                 <option value="pcs">Piece (pcs)</option>
-                <option value="packet">Packet</option>
                 <option value="box">Box</option>
               </select>
               <small class="text-dim" id="prod-unit-note"></small>
             </div>
-            <div class="col-md-4">
-              <label class="form-label text-muted small" for="prod-price">Rate per unit, incl. GST (₹) *</label>
-              <input id="prod-price" type="number" min="0.01" step="0.01" class="form-control form-dairy-control" required>
-              <small class="text-dim">For customers without their own rate.</small>
+
+            <div class="col-12">
+              <div class="d-flex justify-content-between align-items-end mb-1">
+                <label class="form-label text-muted small mb-0">Sizes and rates *</label>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addSizeRow()"><i class="bi bi-plus-lg me-1"></i>Add another size</button>
+              </div>
+              <div class="table-responsive border rounded">
+                <table class="table table-sm align-middle mb-0 product-sizes-table">
+                  <thead>
+                    <tr class="small text-muted">
+                      <th style="min-width:110px">Size</th>
+                      <th class="ps-litres-col" style="min-width:90px">Litres in 1</th>
+                      <th style="min-width:110px">Rate incl. GST (₹) *</th>
+                      <th style="min-width:100px">Cost price (₹)</th>
+                      <th style="min-width:90px">Code</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="prod-sizes"></tbody>
+                </table>
+              </div>
+              <small class="text-dim d-block mt-1" id="prod-sizes-note"></small>
+              <small class="text-dim d-block" id="prod-unit-hint"></small>
+              <small class="text-dim d-block">Rate is for customers without their own rate. Cost price is for the profit report only.</small>
             </div>
+
             <div class="col-md-4">
               <label class="form-label text-muted small" for="prod-gst">GST %</label>
               <select id="prod-gst" class="form-select form-dairy-control">
@@ -1291,15 +1315,6 @@
                 <option value="40">40%</option>
               </select>
               <small class="text-dim" id="prod-gst-note">Shown on bills only when your GSTIN is set in Dairy Settings.</small>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label text-muted small" for="prod-cost">Cost price per unit (₹)</label>
-              <input id="prod-cost" type="number" min="0" step="0.01" class="form-control form-dairy-control">
-              <small class="text-dim">For the profit report only.</small>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label text-muted small" for="prod-pack">Pack size (optional)</label>
-              <input id="prod-pack" class="form-control form-dairy-control" maxlength="50" placeholder="e.g. 500 g cup">
             </div>
             <div class="col-md-4">
               <label class="form-label text-muted small" for="prod-hsn">HSN code (optional)</label>
@@ -1461,13 +1476,21 @@
             </div>
           </div>
 
-          <h6 class="fw-bold text-muted small text-uppercase mb-2">Milk Supply</h6>
+          <h6 class="fw-bold text-muted small text-uppercase mb-2">Rates</h6>
+          <div class="mb-1 table-responsive border rounded">
+            <table class="table table-sm align-middle mb-0 product-sizes-table">
+              <thead>
+                <tr class="small text-muted">
+                  <th>Product</th>
+                  <th class="text-end">Standard rate</th>
+                  <th style="width:160px">This customer's rate (₹)</th>
+                </tr>
+              </thead>
+              <tbody id="cust-rates"></tbody>
+            </table>
+          </div>
+          <small class="text-dim d-block mb-3">Leave empty to use the standard rate. Rates include GST. A new rate applies to orders not dispatched yet.</small>
           <div class="row g-3 mb-4">
-            <div class="col-md-4">
-              <label class="form-label text-muted small" id="cust-milk-rate-label">Milk Rate (₹/L) *</label>
-              <input type="number" step="0.01" min="0.01" id="cust-milk-rate" class="form-control form-dairy-control" required>
-              <small class="text-dim">Rate of the customer's usual product. Other products: Custom Pricing.</small>
-            </div>
             <div class="col-md-4">
               <label class="form-label text-muted small">Customer Code</label>
               <input type="text" id="cust-code" class="form-control form-dairy-control" placeholder="Auto-generated if blank">
@@ -1765,7 +1788,10 @@
             <div class="col-md-6">
               <label class="form-label text-muted small">Customer order cut-off time</label>
               <input type="time" id="bs-order_cutoff_time" class="form-control form-dairy-control" required>
-              <small class="text-dim">Customers can order for a day until this time on the evening before. Once placed, an order cannot be changed by the customer.</small>
+              <small class="text-dim">Last time customers can place, change or cancel a day's order; after it the order is locked (view only).
+                A time before noon is after midnight on the delivery day (01:00 = orders for the 24th close at 1 AM on the 24th);
+                from noon it is the evening before (21:00 = 9 PM on the 23rd). Must be before the dispatch time.</small>
+              <div class="small fw-semibold text-info mt-1" id="bs-cutoff-example"></div>
             </div>
             <div class="col-md-6">
               <label class="form-label text-muted small">Automatic dispatch time</label>
@@ -1948,7 +1974,7 @@
 <script>window.DAIRY_APP = 'admin';</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <!-- Central API & App JS -->
-<script src="/frontend/js/api.js?v=20261022c"></script>
-<script src="/frontend/js/app.js?v=20261022c"></script>
+<script src="/frontend/js/api.js?v=20261022d"></script>
+<script src="/frontend/js/app.js?v=20261022d"></script>
 </body>
 </html>

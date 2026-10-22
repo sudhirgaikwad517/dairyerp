@@ -11,6 +11,7 @@ import 'package:dairy_customer_app/utils/format.dart';
 import 'package:dairy_customer_app/widgets/floating_nav_bar.dart';
 import 'package:dairy_customer_app/screens/login_screen.dart';
 import 'package:dairy_customer_app/theme/app_theme.dart';
+import 'package:dairy_customer_app/widgets/order_details.dart';
 import 'package:dairy_customer_app/widgets/ui.dart';
 
 void main() {
@@ -293,5 +294,39 @@ void main() {
     expect(adminOrderStatus(o).$1, 'Delivered');
     expect(wholeUnit('packet'), isTrue);
     expect(qtyUnit(1.5, 'kg'), '1.5 kg');
+  });
+
+  testWidgets('Order details list each product with quantity x rate, amount and the total', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const lines = [
+      OrderLineView(name: 'Cow Milk Brand Pouch - 1 L', unit: 'pouch', qty: 500, rate: 57.5, amount: 28750),
+      OrderLineView(name: 'Cow Milk Brand Pouch - 500 ML', unit: 'pouch', qty: 200, rate: 28.75, amount: 5750, delivered: 180),
+    ];
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: SingleChildScrollView(child: OrderLinesTable(lines: lines, total: 34500)))));
+    expect(find.text('500 pouch × ₹57.50'), findsOneWidget);
+    expect(find.text('₹28,750'), findsOneWidget);
+    expect(find.text('Delivered 180 pouch'), findsOneWidget);
+    expect(find.text('Total (2 products)'), findsOneWidget);
+    expect(find.text('₹34,500'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('Sizes of a product, cut-off text and cancel flag are read', () {
+    final p = ProductItem.fromJson({'id': 3, 'product_name': 'Cow Milk Brand Pouch - 500 ML', 'unit': 'pouch', 'custom_price': 28.75,
+      'standard_b2b_price': 28.75, 'group_name': 'Cow Milk Brand Pouch', 'variant_name': '500 ML'});
+    expect(p.group, 'Cow Milk Brand Pouch');
+    expect(p.variantName, '500 ML');
+    expect(p.whole, isTrue);
+    final plain = ProductItem.fromJson({'id': 4, 'product_name': 'Paneer', 'unit': 'kg', 'custom_price': 400, 'standard_b2b_price': 400});
+    expect(plain.group, 'Paneer');
+    final d = DayPlan.fromJson({'date': '2026-10-24', 'day_name': 'Saturday', 'total_qty': 3, 'total_amount': 204, 'status': 'confirmed',
+      'editable': true, 'can_cancel': true, 'orders_closed': false, 'order_deadline': '2026-10-24T01:00',
+      'items': [{'product_id': 6, 'product_name': 'Buffalo Milk - 1 L', 'unit': 'pouch', 'quantity': 3, 'rate': 68, 'amount': 204}]});
+    expect(d.canCancel, isTrue);
+    expect(d.items.first.amount, 204);
+    expect(d.orderDeadline, DateTime(2026, 10, 24, 1));
+    final prof = CustomerProfile.fromJson({'id': 1, 'order_cutoff_time': '01:00', 'order_cutoff_text': '1:00 AM on the delivery day'});
+    expect(prof.orderCutoffText, '1:00 AM on the delivery day');
   });
 }

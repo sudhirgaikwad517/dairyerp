@@ -6,6 +6,7 @@ import '../../models/admin_models.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
+import '../../widgets/order_details.dart';
 import '../../widgets/ui.dart';
 import '../error_view.dart';
 import 'admin_widgets.dart';
@@ -61,7 +62,10 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   @override
   Widget build(BuildContext context) {
     final visible = _orders
-        .where((o) => _search.isEmpty || o.customerName.toLowerCase().contains(_search) || o.customerCode.toLowerCase().contains(_search))
+        .where(
+          (o) =>
+              _search.isEmpty || o.customerName.toLowerCase().contains(_search) || o.customerCode.toLowerCase().contains(_search),
+        )
         .toList();
     final active = visible.where((o) => !o.isCancelled).toList();
     final totalL = active.fold<double>(0, (s, o) => s + o.totalLitres);
@@ -92,26 +96,19 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
             DateSwitcher(day: _day, onChanged: _setDay),
             const SizedBox(height: 12),
             if (_loading && _summary == null)
-              const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: AppTheme.navy)))
+              const Padding(
+                padding: EdgeInsets.all(40),
+                child: Center(child: CircularProgressIndicator(color: AppTheme.navy)),
+              )
             else if (_error != null && _summary == null)
               ErrorView(message: _error!, onRetry: _load)
             else ...[
               _summaryBar(),
-              if (_summary!.productsText.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(_summary!.productsText, style: const TextStyle(fontSize: 12.5, color: AppTheme.textMuted)),
-              ],
-              if (_summary!.dispatch != null) ...[
-                const SizedBox(height: 12),
-                _dispatchCard(_summary!.dispatch!),
-              ],
+              if (_summary!.products.isNotEmpty) ...[const SizedBox(height: 12), _productsCard(_summary!.products)],
+              if (_summary!.dispatch != null) ...[const SizedBox(height: 12), _dispatchCard(_summary!.dispatch!)],
               const SizedBox(height: 12),
               TextField(
-                decoration: const InputDecoration(
-                  hintText: 'Search customer',
-                  prefixIcon: Icon(Icons.search),
-                  isDense: true,
-                ),
+                decoration: const InputDecoration(hintText: 'Search customer', prefixIcon: Icon(Icons.search), isDense: true),
                 onChanged: (v) => setState(() => _search = v.trim().toLowerCase()),
               ),
               const SizedBox(height: 12),
@@ -144,13 +141,25 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
     final (IconData icon, Color color, String title, String sub) = d.onHold
         ? (Icons.pause_circle_outline_rounded, AppTheme.warmAmber, 'Dispatch on hold', d.holdNote ?? '')
         : d.dispatchedOrders > 0 && d.waitingOrders == 0
-            ? (Icons.check_circle_outline_rounded, AppTheme.freshGreen, '${d.dispatchedOrders} order(s) sent to delivery boys',
-                d.autoDispatchedAt != null ? 'Automatically at ${DateFormat('h:mm a').format(d.autoDispatchedAt!)}' : '')
-            : d.timePassed && d.waitingOrders > 0
-                ? (Icons.hourglass_top_rounded, AppTheme.warmAmber, '${d.waitingOrders} order(s) waiting',
-                    'They go out within a minute. If not, check the customer\'s route.')
-                : (Icons.schedule_rounded, AppTheme.primaryBlue, 'Automatic dispatch at $at',
-                    d.waitingOrders > 0 ? '${d.waitingOrders} order(s) will go to the delivery boys' : 'No orders yet');
+        ? (
+            Icons.check_circle_outline_rounded,
+            AppTheme.freshGreen,
+            '${d.dispatchedOrders} order(s) sent to delivery boys',
+            d.autoDispatchedAt != null ? 'Automatically at ${DateFormat('h:mm a').format(d.autoDispatchedAt!)}' : '',
+          )
+        : d.timePassed && d.waitingOrders > 0
+        ? (
+            Icons.hourglass_top_rounded,
+            AppTheme.warmAmber,
+            '${d.waitingOrders} order(s) waiting',
+            'They go out within a minute. If not, check the customer\'s route.',
+          )
+        : (
+            Icons.schedule_rounded,
+            AppTheme.primaryBlue,
+            'Automatic dispatch at $at',
+            d.waitingOrders > 0 ? '${d.waitingOrders} order(s) will go to the delivery boys' : 'No orders yet',
+          );
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -173,8 +182,12 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                     Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
                     if (sub.isNotEmpty) Text(sub, style: const TextStyle(color: AppTheme.textMain, fontSize: 13, height: 1.35)),
                     if (d.onHold)
-                      Text(d.customersTold ? 'Customers with orders have been told.' : 'Customers are told at $at if the hold is still on.',
-                          style: const TextStyle(color: AppTheme.textMuted, fontSize: 12)),
+                      Text(
+                        d.customersTold
+                            ? 'Customers with orders have been told.'
+                            : 'Customers are told at $at if the hold is still on.',
+                        style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                      ),
                   ],
                 ),
               ),
@@ -215,9 +228,11 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Delivery boys will not get this day\'s orders until you remove the hold. '
-                'Customers with orders see this note at dispatch time.',
-                style: TextStyle(fontSize: 13, color: AppTheme.textMuted)),
+            const Text(
+              'Delivery boys will not get this day\'s orders until you remove the hold. '
+              'Customers with orders see this note at dispatch time.',
+              style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
@@ -261,9 +276,11 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Remove the hold?'),
-        content: Text(d.timePassed
-            ? 'The dispatch time has passed, so the orders go to the delivery boys right now.'
-            : 'Orders will go out automatically at the dispatch time.'),
+        content: Text(
+          d.timePassed
+              ? 'The dispatch time has passed, so the orders go to the delivery boys right now.'
+              : 'Orders will go out automatically at the dispatch time.',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove hold')),
@@ -286,81 +303,176 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   Widget _summaryBar() {
     final s = _summary!;
     Widget cell(String value, String label) => Expanded(
-          child: Column(
-            children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
-              ),
-              const SizedBox(height: 2),
-              Text(label, style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
-            ],
+      child: Column(
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
+            ),
           ),
-        );
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 11.5, color: Colors.white70)),
+        ],
+      ),
+    );
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       decoration: BoxDecoration(color: AppTheme.navy, borderRadius: BorderRadius.circular(16)),
       child: Row(
         children: [
           cell('${s.customersOrdered}/${s.activeCustomers}', 'Customers'),
-          cell('${qty(s.totalLitres)} L', s.productsText.isEmpty ? 'Milk' : 'Milk (all types)'),
+          cell('${qty(s.totalLitres)} L', 'Milk'),
           cell(rupees(s.totalAmount), 'Amount'),
         ],
       ),
     );
   }
 
-  Widget _orderCard(AdminOrder o) {
-    final (statusText, statusColor) = adminOrderStatus(o);
+  /// Day's quantity per product, one line each.
+  Widget _productsCard(List<DayProductTotal> products) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(o.customerName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text([o.routeName, o.driverName].whereType<String>().join(' • '),
-                          style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                    ],
-                  ),
-                ),
-                StatusChip(statusText, color: statusColor),
-              ],
+            const Text(
+              'PRODUCTS',
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: AppTheme.textMuted, letterSpacing: 0.6),
             ),
-            if (!o.isCancelled) ...[
-              const Divider(height: 20),
+            const SizedBox(height: 6),
+            for (final p in products)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(p.name, style: const TextStyle(fontSize: 13.5))),
+                    const SizedBox(width: 8),
+                    Text(qtyUnit(p.quantity, p.unit), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showOrder(AdminOrder o) async {
+    final (statusText, statusColor) = adminOrderStatus(o);
+    final delivered = o.isDelivered;
+    await showOrderDetailsSheet<void>(
+      context,
+      title: o.customerName,
+      subtitle: [
+        DateFormat('EEE, dd MMM yyyy').format(DateTime.parse(o.deliveryDate)),
+        o.orderNumber,
+        if (o.routeName != null) o.routeName!,
+        if (o.driverName != null) o.driverName!,
+      ].join(' • '),
+      statusText: statusText,
+      statusColor: statusColor,
+      lines: o.items
+          .map(
+            (i) => OrderLineView(
+              name: i.productName,
+              unit: i.unit,
+              qty: i.quantity,
+              rate: i.unitPrice,
+              amount: i.totalAmount,
+              delivered: delivered ? i.deliveredQuantity : null,
+            ),
+          )
+          .toList(),
+      total: o.totalAmount,
+      totalLabel: 'Order total',
+      note: o.isCancelled
+          ? const SheetNote('This order was cancelled.', icon: Icons.cancel_outlined)
+          : delivered
+          ? SheetNote(
+              o.notDelivered
+                  ? 'Not delivered • billed ₹0'
+                  : 'Delivered ${o.deliveredWhat} • billed ${rupees(o.amount)}'
+                        '${o.shortageReason != null ? ' (${o.shortageReason!.replaceAll('_', ' ')})' : ''}'
+                        '${o.billNumber != null ? ' • bill ${o.billNumber}' : ''}',
+              icon: o.isShort || o.notDelivered ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+              color: o.isShort || o.notDelivered ? AppTheme.warmAmber : AppTheme.freshGreen,
+            )
+          : null,
+    );
+  }
+
+  Widget _orderCard(AdminOrder o) {
+    final (statusText, statusColor) = adminOrderStatus(o);
+    final products = o.items.length;
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _showOrder(o),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Text(
-                      o.multiProduct ? o.what : '${o.what} × ${o.rate != null ? rupees(o.rate!) : 'mixed'}',
-                      style: const TextStyle(fontSize: 14, color: AppTheme.textMain),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(o.customerName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 2),
+                        Text(
+                          o.isCancelled
+                              ? 'Cancelled'
+                              : '$products product${products == 1 ? '' : 's'}'
+                                    '${o.totalLitres > 0 ? ' • ${qty(o.totalLitres)} L' : ''}'
+                                    '${o.routeName != null ? ' • ${o.routeName}' : ''}',
+                          style: const TextStyle(fontSize: 12.5, color: AppTheme.textMuted),
+                        ),
+                      ],
                     ),
                   ),
-                  Text(rupees(o.totalAmount), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.navy)),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (!o.isCancelled)
+                        Text(
+                          rupees(o.totalAmount),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.navy),
+                        ),
+                      const SizedBox(height: 4),
+                      StatusChip(statusText, color: statusColor),
+                    ],
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 2, top: 8),
+                    child: Icon(Icons.chevron_right, size: 20, color: AppTheme.textMuted),
+                  ),
                 ],
               ),
-              if (o.isShort || o.notDelivered)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    o.notDelivered
-                        ? 'Not delivered • billed ₹0'
-                        : 'Delivered ${o.deliveredWhat} • billed ${rupees(o.amount)}'
-                            '${o.shortageReason != null ? ' (${o.shortageReason!.replaceAll('_', ' ')})' : ''}',
-                    style: TextStyle(fontSize: 12.5, color: o.notDelivered ? AppTheme.alertRose : AppTheme.warmAmber, fontWeight: FontWeight.w600),
+              if (!o.isCancelled) ...[
+                if (o.isShort || o.notDelivered)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      o.notDelivered
+                          ? 'Not delivered • billed ₹0'
+                          : 'Delivered ${o.deliveredWhat} • billed ${rupees(o.amount)}'
+                                '${o.shortageReason != null ? ' (${o.shortageReason!.replaceAll('_', ' ')})' : ''}',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: o.notDelivered ? AppTheme.alertRose : AppTheme.warmAmber,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -369,22 +481,25 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   Widget _totalCard(int count, double litres, double amount) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.infoBanner,
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: BoxDecoration(color: AppTheme.infoBanner, borderRadius: BorderRadius.circular(16)),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('TOTAL', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1, color: AppTheme.navy)),
+                const Text(
+                  'TOTAL',
+                  style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1, color: AppTheme.navy),
+                ),
                 Text('$count orders • ${qty(litres)} L milk', style: const TextStyle(color: AppTheme.textMain)),
               ],
             ),
           ),
-          Text(rupees(amount), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.navy)),
+          Text(
+            rupees(amount),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.navy),
+          ),
         ],
       ),
     );

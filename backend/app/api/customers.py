@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import List, Optional
 from datetime import date
 from pydantic import BaseModel
 from backend.app.api.auth import phone_taken
@@ -13,6 +13,11 @@ from backend.app.models.entities import (
 )
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
+
+
+class RateIn(BaseModel):
+    product_id: int
+    rate: Optional[float] = None  # None = the product's standard rate
 
 
 class CustomerSchema(BaseModel):
@@ -31,8 +36,10 @@ class CustomerSchema(BaseModel):
     assigned_driver_id: Optional[int] = None  # delivery boy
     route_stop_sequence: int = 1
     is_active: bool = True
-    # The customer's rate for the main product (milk)
+    # The customer's rate for the main product (milk); older screens only
     milk_rate: Optional[float] = None
+    # The customer's rate for each product (the customer form); replaces milk_rate when given
+    rates: Optional[List[RateIn]] = None
     transport_allocation_method: str = "equal_per_litre"
     negotiated_transport_rate_per_litre: float = 0.0
 
@@ -62,6 +69,11 @@ def _validate(db: Session, payload: CustomerSchema):
         raise HTTPException(status_code=400, detail="Selected delivery boy does not exist")
     if payload.milk_rate is not None and payload.milk_rate <= 0:
         raise HTTPException(status_code=400, detail="Milk rate must be greater than zero")
+    for r in payload.rates or []:
+        if r.rate is not None and r.rate <= 0:
+            raise HTTPException(status_code=400, detail="A rate must be greater than zero (leave it empty for the standard rate)")
+        if not db.query(Product).filter(Product.id == r.product_id).first():
+            raise HTTPException(status_code=400, detail="One of the products was not found; reload the page")
     if payload.credit_limit < 0 or payload.credit_days < 0:
         raise HTTPException(status_code=400, detail="Credit limit and credit days cannot be negative")
 
@@ -86,6 +98,17 @@ def _apply(customer: Customer, payload: CustomerSchema):
 
 
 def _apply_milk_settings(db: Session, customer: Customer, payload: CustomerSchema, admin: User):
+    if payload.rates is not None:
+        # One rate per product; empty = standard rate
+        for r in payload.rates:
+            product = db.query(Product).filter(Product.id == r.product_id).first()
+            has_own = db.query(CustomerPricing).filter(
+                CustomerPricing.customer_id == customer.id, CustomerPricing.product_id == product.id
+            ).first()
+            if not has_own and (r.rate is None or round(r.rate, 2) == round(product.standard_b2b_price, 2)):
+                continue  # keeps following the standard rate
+            set_customer_price(db, customer, product, round(r.rate, 2) if r.rate is not None else None, admin.username)
+        return
     # The rate in the customer form is for the customer's usual product (other products: Custom Pricing)
     milk = main_product(db, customer.id) if customer.id else _milk_product(db)
     if milk and payload.milk_rate is not None:
@@ -103,6 +126,9 @@ def list_customers(db: Session = Depends(get_db)):
     routes = {r.id: r.route_name for r in db.query(DeliveryRoute).all()}
     drivers = {u.id: u.full_name for u in db.query(User).filter(User.role == "driver").all()}
     logins = {u.id: u for u in db.query(User).filter(User.role == "customer").all()}
+    own_rates = {}
+    for cp in db.query(CustomerPricing).all():
+        own_rates.setdefault(cp.customer_id, {})[cp.product_id] = cp.custom_price
     result = []
     for c in customers:
         milk = main_product(db, c.id)
@@ -127,6 +153,8 @@ def list_customers(db: Session = Depends(get_db)):
             "credit_days": c.credit_days,
             "current_outstanding": c.current_outstanding,
             "milk_rate": rate,
+            # Own rate per product id (products not listed: standard rate)
+            "own_rates": own_rates.get(c.id, {}),
             "rate_product": f"{milk.product_name} (/{milk.unit})" if milk else None,
             "transport_allocation_method": c.transport_allocation_method,
             "negotiated_transport_rate_per_litre": c.negotiated_transport_rate_per_litre,

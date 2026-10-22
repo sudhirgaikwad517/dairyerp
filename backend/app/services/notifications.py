@@ -106,10 +106,29 @@ def order_dispatched(db: Session, customer: Customer, day: date, what: str) -> N
                     f"It can no longer be changed.", "orders")
 
 
-def order_confirmed(db: Session, customer: Customer, day: date, what: str, amount: float, number: str) -> None:
+def _until(deadline: datetime) -> str:
+    return f"{deadline:%I:%M %p}".lstrip("0") + f" on {day_text(deadline.date())}"
+
+
+def order_confirmed(db: Session, customer: Customer, day: date, what: str, amount: float, number: str,
+                    deadline: datetime) -> None:
     notify_customer(db, customer.id, "order_confirmed", "Order confirmed",
                     f"Order {number} for {day_text(day)}: {what}, {money(amount)}. "
-                    f"It cannot be changed from the app; please call the dairy for any change.", "orders")
+                    f"You can change it in the app till {_until(deadline)}.", "orders")
+
+
+def order_changed_by_customer(db: Session, customer: Customer, day: date, what: str, previous: str, amount: float,
+                              deadline: datetime) -> None:
+    notify_customer(db, customer.id, "order_changed", "Order changed",
+                    f"Your order for {day_text(day)} is now {what}, {money(amount)} (was {previous}). "
+                    f"You can change it till {_until(deadline)}.", "orders")
+
+
+def order_cancelled_by_customer(db: Session, customer: Customer, day: date, previous: Optional[str],
+                                deadline: datetime) -> None:
+    notify_customer(db, customer.id, "order_cancelled", "Order cancelled",
+                    f"You cancelled your order for {day_text(day)}"
+                    f"{f' ({previous})' if previous else ''}. You can order again till {_until(deadline)}.", "orders")
 
 
 def order_set_by_dairy(db: Session, customer: Customer, day: date, what: Optional[str], previous: Optional[str]) -> None:

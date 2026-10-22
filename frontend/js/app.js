@@ -328,20 +328,45 @@ async function ensureRoutes() {
 }
 
 window.openCustomerModal = async function(customerId = null) {
-  const c = customerId ? customersCache.find(x => x.id === customerId) : null;
+  // Always fill the form from fresh data, so it shows exactly what is saved now
+  let routesAll = [];
   try {
-    await ensureRoutes();
+    const [customers, drivers, routes, products] = await Promise.all([
+      DairyAPI.getCustomers(), DairyAPI.getDrivers(), DairyAPI.getRoutes(true), DairyAPI.getAllProducts()]);
+    customersCache = customers;
+    driversCache = drivers;
+    routesAll = routes;
+    routesCache = routes.filter(r => r.is_active);
+    allProducts = products;
   } catch (err) {
-    console.error('Failed to load routes:', err);
+    alert('Could not load the customer: ' + err.message);
+    return;
   }
+  const c = customerId ? customersCache.find(x => x.id === customerId) : null;
+  if (customerId && !c) {
+    alert('This customer was not found. Reload the page.');
+    return;
+  }
+  // Active routes, plus the customer's own route even if it was switched off
+  const routeList = routesAll.filter(r => r.is_active || (c && c.assigned_route_id === r.id));
   document.getElementById('cust-route').innerHTML =
-    (routesCache.length ? '<option value="">No route</option>' : '<option value="">No routes yet: add one in Customers &rarr; Routes</option>') +
-    routesCache.map(r => `<option value="${r.id}">${esc(r.route_name)}${r.driver_name ? ' &bull; ' + esc(r.driver_name) : ''}</option>`).join('');
+    (routeList.length ? '<option value="">No route</option>' : '<option value="">No routes yet: add one in Customers &rarr; Routes</option>') +
+    routeList.map(r => `<option value="${r.id}">${esc(r.route_name)}${r.driver_name ? ' &bull; ' + esc(r.driver_name) : ''}${r.is_active ? '' : ' (off)'}</option>`).join('');
   document.getElementById('cust-driver').innerHTML = '<option value="">Not assigned</option>' +
     driversCache.filter(d => d.is_active || (c && c.assigned_driver_id === d.id))
-      .map(d => `<option value="${d.id}">${esc(d.full_name)} (${esc(d.phone)})</option>`).join('');
+      .map(d => `<option value="${d.id}">${esc(d.full_name)} (${esc(d.phone)})${d.is_active ? '' : ' (inactive)'}</option>`).join('');
 
-  const milk = productsCache.find(p => p.unit === 'L');
+  // One rate per product on sale (and any product this customer already has an own rate for)
+  const own = (c && c.own_rates) || {};
+  const rateProducts = allProducts.filter(p => p.is_active || own[p.id] !== undefined);
+  document.getElementById('cust-rates').innerHTML = rateProducts.length ? rateProducts.map(p => `
+    <tr>
+      <td><div class="fw-semibold">${esc(p.product_name)}</div><small class="text-muted">per ${esc(UNIT_LABEL[p.unit] || p.unit)}${p.is_active ? '' : ' • off sale'}</small></td>
+      <td class="text-end">${inr(p.standard_b2b_price)}</td>
+      <td><input type="number" step="0.01" min="0.01" class="form-control form-control-sm form-dairy-control cust-rate"
+        data-product="${p.id}" placeholder="${p.standard_b2b_price}" value="${own[p.id] ?? ''}"></td>
+    </tr>`).join('') : '<tr><td colspan="3" class="text-muted small">No products yet: add them in Products.</td></tr>';
+
   const set = (id, v) => { document.getElementById(id).value = v ?? ''; };
   document.getElementById('cust-modal-title').innerText = c ? `Edit Customer • ${c.customer_code}` : 'Add Customer';
   set('cust-id', c ? c.id : '');
@@ -353,13 +378,10 @@ window.openCustomerModal = async function(customerId = null) {
   set('cust-address', c?.delivery_address);
   set('cust-billing-address', c && c.billing_address !== c.delivery_address ? c.billing_address : '');
   set('cust-gstin', c?.gstin);
-  set('cust-milk-rate', c ? c.milk_rate : (milk ? milk.standard_b2b_price : ''));
-  document.getElementById('cust-milk-rate-label').innerText = c && c.rate_product
-    ? `Rate: ${c.rate_product} *` : `Milk Rate (${milk ? milk.product_name : 'milk'}, ₹/L) *`;
   set('cust-code', c?.customer_code);
   document.getElementById('cust-code').disabled = !!c;
   set('cust-route', c ? (c.assigned_route_id ?? '') : (routesCache[0]?.id ?? ''));
-  set('cust-driver', c ? (c.assigned_driver_id ?? '') : '');
+  set('cust-driver', c ? (c.assigned_driver_id ?? '') : (routesCache[0]?.driver_id ?? ''));
   set('cust-stop', c ? c.route_stop_sequence : 1);
   set('cust-credit-limit', c ? c.credit_limit : 50000);
   set('cust-credit-days', c ? c.credit_days : 7);
@@ -785,7 +807,7 @@ function fillOrderCustomers() {
 }
 
 // One quantity box per product on sale (plus any switched-off product already on this order)
-const WHOLE_UNITS = ['pcs', 'packet', 'box'];
+const WHOLE_UNITS = ['pcs', 'packet', 'box', 'pouch', 'bottle'];
 function renderOrderItemInputs(currentItems = []) {
   const box = document.getElementById('ao-items');
   const current = Object.fromEntries(currentItems.map(i => [i.product_id, i]));
@@ -1006,7 +1028,7 @@ window.openClaim = async function(claimId) {
       <div class="row g-2 align-items-end">
         <div class="col-md-3">
           <label class="form-label text-muted small mb-1">Approve ${esc(c.unit)} (max ${fmtQty(maxQty)})</label>
-          <input type="number" id="claim-approve-qty" class="form-control form-dairy-control" min="0" step="${['pcs', 'packet', 'box'].includes(c.unit) ? 1 : 'any'}" max="${maxQty}" value="${maxQty}">
+          <input type="number" id="claim-approve-qty" class="form-control form-dairy-control" min="0" step="${WHOLE_UNITS.includes(c.unit) ? 1 : 'any'}" max="${maxQty}" value="${maxQty}">
           <small class="text-dim">Rate ₹${c.rate}/L • Credit <b id="claim-credit">₹${(maxQty * c.rate).toFixed(2)}</b></small>
         </div>
         <div class="col-md-9">
@@ -1312,8 +1334,11 @@ window.downloadOrdersExcel = function() {
 };
 
 // ---------------- Products ----------------
+// A product can have several sizes (500 ML, 1 L): each size is its own product with the same group_name.
 let allProducts = [];
-const UNIT_LABEL = { L: 'Litre', kg: 'Kg', pcs: 'Piece', packet: 'Packet', box: 'Box' };
+let productGroups = [];
+const UNIT_LABEL = { L: 'Litre', kg: 'Kg', pcs: 'Piece', packet: 'Packet', box: 'Box', pouch: 'Pouch', bottle: 'Bottle' };
+const PACK_UNITS = ['pouch', 'bottle', 'packet'];
 
 async function loadProducts() {
   const tbody = document.getElementById('products-tbody');
@@ -1331,32 +1356,94 @@ async function loadProducts() {
   if (document.getElementById('ao-items')) showCurrentOrder();
 }
 
+function groupProducts(list) {
+  const groups = new Map();
+  list.forEach(p => {
+    const key = (p.group_name || p.product_name).toLowerCase();
+    if (!groups.has(key)) groups.set(key, { name: p.group_name || p.product_name, items: [] });
+    groups.get(key).items.push(p);
+  });
+  return [...groups.values()].map(g => {
+    g.items.sort((a, b) => (a.litres_in_unit || 0) - (b.litres_in_unit || 0) || a.id - b.id);
+    g.first = g.items[0];
+    g.hasSizes = g.items.some(p => p.variant_name);
+    return g;
+  });
+}
+
+function productRateCell(p) {
+  return `${inr(p.standard_b2b_price)}/${esc(p.unit)}
+    ${p.gst_rate ? `<br><small class="text-muted fw-normal">GST inside ${inr(p.gst_in_price)}</small>` : ''}`;
+}
+
+function productStatusCell(p) {
+  return `<span class="badge ${p.is_active ? 'bg-success' : 'bg-secondary'}">${p.is_active ? 'ON SALE' : 'OFF'}</span>
+    ${p.open_orders ? `<br><small class="text-muted">${p.open_orders} open order(s)</small>` : ''}`;
+}
+
+function productToggleButton(p) {
+  return `<button class="btn btn-sm ${p.is_active ? 'btn-outline-danger' : 'btn-outline-success'}" onclick="toggleProduct(${p.id})">
+    ${p.is_active ? 'Switch off' : 'Put on sale'}</button>`;
+}
+
 function renderProducts() {
   const showOff = document.getElementById('prod-show-off').checked;
-  const rows = allProducts.filter(p => showOff || p.is_active);
+  productGroups = groupProducts(allProducts);
   const tbody = document.getElementById('products-tbody');
-  if (!rows.length) {
+  const visible = productGroups.map((g, gi) => ({ g, gi, items: g.items.filter(p => showOff || p.is_active) }))
+    .filter(x => x.items.length);
+  if (!visible.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No products.</td></tr>';
     return;
   }
-  tbody.innerHTML = rows.map(p => `
-    <tr class="${p.is_active ? '' : 'opacity-50'}">
-      <td><div class="fw-bold">${esc(p.product_name)}</div>
-        <small class="text-muted">${esc(p.category)}${p.pack_size ? ' • ' + esc(p.pack_size) : ''} • ${esc(p.sku)}</small></td>
-      <td>${esc(UNIT_LABEL[p.unit] || p.unit)}</td>
-      <td class="text-end fw-bold">${inr(p.standard_b2b_price)}/${esc(p.unit)}
-        ${p.gst_rate ? `<br><small class="text-muted fw-normal">GST inside ${inr(p.gst_in_price)}</small>` : ''}</td>
-      <td class="text-end">${p.gst_rate}%</td>
-      <td class="text-end">${p.cost_price ? inr(p.cost_price) : '<span class="text-warning">not set</span>'}</td>
-      <td class="text-end">${p.custom_rates}</td>
-      <td><span class="badge ${p.is_active ? 'bg-success' : 'bg-secondary'}">${p.is_active ? 'ON SALE' : 'OFF'}</span>
-        ${p.open_orders ? `<br><small class="text-muted">${p.open_orders} open order(s)</small>` : ''}</td>
-      <td class="text-nowrap">
-        <button class="btn btn-sm btn-outline-secondary" onclick="openProductModal(${p.id})" title="Edit"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm ${p.is_active ? 'btn-outline-danger' : 'btn-outline-success'}" onclick="toggleProduct(${p.id})">
-          ${p.is_active ? 'Switch off' : 'Put on sale'}</button>
-      </td>
-    </tr>`).join('');
+  tbody.innerHTML = visible.map(({ g, gi, items }) => {
+    const f = g.first;
+    if (!g.hasSizes) {
+      const p = items[0];
+      return `
+      <tr class="${p.is_active ? '' : 'opacity-50'}">
+        <td><div class="fw-bold">${esc(p.product_name)}</div>
+          <small class="text-muted">${esc(p.category)}${p.pack_size ? ' • ' + esc(p.pack_size) : ''} • ${esc(p.sku)}</small></td>
+        <td>${esc(UNIT_LABEL[p.unit] || p.unit)}</td>
+        <td class="text-end fw-bold">${productRateCell(p)}</td>
+        <td class="text-end">${p.gst_rate}%</td>
+        <td class="text-end">${p.cost_price ? inr(p.cost_price) : '<span class="text-warning">not set</span>'}</td>
+        <td class="text-end">${p.custom_rates}</td>
+        <td>${productStatusCell(p)}</td>
+        <td class="text-nowrap">
+          <button class="btn btn-sm btn-outline-secondary" onclick="openProductModal(${gi})" title="Edit"><i class="bi bi-pencil"></i></button>
+          ${productToggleButton(p)}
+        </td>
+      </tr>`;
+    }
+    return `
+      <tr class="product-group-row">
+        <td colspan="2"><div class="fw-bold">${esc(g.name)}</div>
+          <small class="text-muted">${esc(f.category)} • ${g.items.length} size(s) • sold per ${esc((UNIT_LABEL[f.unit] || f.unit).toLowerCase())}</small></td>
+        <td></td>
+        <td class="text-end">${f.gst_rate}%</td>
+        <td colspan="3"></td>
+        <td class="text-nowrap">
+          <button class="btn btn-sm btn-outline-secondary" onclick="openProductModal(${gi})" title="Edit product and sizes"><i class="bi bi-pencil"></i> Edit</button>
+          <button class="btn btn-sm btn-outline-primary" onclick="openProductModal(${gi}, true)" title="Add a size"><i class="bi bi-plus-lg"></i> Size</button>
+        </td>
+      </tr>` + items.map(p => `
+      <tr class="product-size-row ${p.is_active ? '' : 'opacity-50'}">
+        <td class="ps-4"><span class="badge rounded-pill text-bg-light border me-1">${esc(p.variant_name || '-')}</span>
+          <small class="text-muted">${esc(p.sku)}${p.litres_per_unit ? ` • ${qtyText(p.litres_per_unit)} L each` : ''}</small></td>
+        <td>${esc(UNIT_LABEL[p.unit] || p.unit)}</td>
+        <td class="text-end fw-bold">${productRateCell(p)}</td>
+        <td></td>
+        <td class="text-end">${p.cost_price ? inr(p.cost_price) : '<span class="text-warning">not set</span>'}</td>
+        <td class="text-end">${p.custom_rates}</td>
+        <td>${productStatusCell(p)}</td>
+        <td class="text-nowrap">${productToggleButton(p)}</td>
+      </tr>`).join('');
+  }).join('');
+}
+
+function qtyText(n) {
+  return Number(n).toLocaleString('en-IN', { maximumFractionDigits: 3 });
 }
 
 window.openProductsView = function() {
@@ -1364,29 +1451,78 @@ window.openProductsView = function() {
   if (link) link.click();
 };
 
-window.openProductModal = function(id) {
-  const p = id ? allProducts.find(x => x.id === id) : null;
+let productFormGroup = null;  // the group being edited, null for a new product
+
+function sizeRowHtml(v) {
+  const isNew = !v.id;
+  return `
+    <tr data-id="${v.id || ''}">
+      <td><input class="form-control form-control-sm form-dairy-control ps-size" maxlength="50" placeholder="e.g. 500 ML" value="${esc(v.variant_name || '')}"></td>
+      <td class="ps-litres-col"><input type="number" min="0" step="0.001" class="form-control form-control-sm form-dairy-control ps-litres" placeholder="e.g. 0.5" value="${v.litres_per_unit ?? ''}"></td>
+      <td><input type="number" min="0.01" step="0.01" class="form-control form-control-sm form-dairy-control ps-price" required value="${v.standard_b2b_price ?? ''}"></td>
+      <td><input type="number" min="0" step="0.01" class="form-control form-control-sm form-dairy-control ps-cost" value="${v.cost_price || ''}"></td>
+      <td><input class="form-control form-control-sm form-dairy-control ps-sku" maxlength="50" placeholder="Auto" value="${esc(v.sku || '')}"></td>
+      <td class="text-end">${isNew
+        ? '<button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="removeSizeRow(this)" title="Remove this size"><i class="bi bi-x-lg"></i></button>'
+        : (v.is_active ? '' : '<span class="badge bg-secondary">OFF</span>')}</td>
+    </tr>`;
+}
+
+window.addSizeRow = function(v = {}) {
+  document.getElementById('prod-sizes').insertAdjacentHTML('beforeend', sizeRowHtml(v));
+  updateSizeHints();
+};
+
+window.removeSizeRow = function(btn) {
+  btn.closest('tr').remove();
+  if (!document.querySelectorAll('#prod-sizes tr').length) addSizeRow();
+  updateSizeHints();
+};
+
+function updateSizeHints() {
+  const unit = document.getElementById('prod-unit').value;
+  const packs = PACK_UNITS.includes(unit);
+  document.querySelectorAll('.ps-litres-col').forEach(el => el.classList.toggle('d-none', !packs));
+  const rows = document.querySelectorAll('#prod-sizes tr').length;
+  document.getElementById('prod-sizes-note').innerText = rows > 1
+    ? 'Customers see these sizes together under one product. Each size has its own rate and code.'
+    : 'One size? Leave Size empty. Selling 500 ML and 1 L packs of this product? Add a row for each size.';
+  document.getElementById('prod-unit-hint').innerText = packs
+    ? `Rate is per ${UNIT_LABEL[unit].toLowerCase()}. Fill "Litres in 1" (0.5 for 500 ML) so milk totals are in litres.`
+    : '';
+}
+
+window.openProductModal = function(groupIndex, addSize = false) {
+  const g = groupIndex === undefined || groupIndex === null ? null : productGroups[groupIndex];
+  productFormGroup = g;
+  const f = g ? g.first : null;
   const set = (k, v) => { document.getElementById(k).value = v ?? ''; };
-  document.getElementById('prod-modal-title').innerText = p ? `Edit ${p.product_name}` : 'Add product';
-  set('prod-id', p ? p.id : '');
-  set('prod-name', p?.product_name);
-  set('prod-category', p ? p.category : 'Milk');
-  set('prod-unit', p ? p.unit : 'L');
-  set('prod-price', p?.standard_b2b_price);
-  set('prod-gst', p ? String(p.gst_rate) : '0');
-  if (p && !['0', '5', '12', '18', '28', '40'].includes(String(p.gst_rate))) {
+  document.getElementById('prod-modal-title').innerText = g ? `Edit ${g.name}` : 'Add product';
+  set('prod-name', g ? g.name : '');
+  set('prod-category', f ? f.category : 'Milk');
+  set('prod-unit', f ? f.unit : 'L');
+  set('prod-gst', f ? String(f.gst_rate) : '0');
+  if (f && !['0', '5', '12', '18', '28', '40'].includes(String(f.gst_rate))) {
     const sel = document.getElementById('prod-gst');
-    sel.insertAdjacentHTML('beforeend', `<option value="${p.gst_rate}">${p.gst_rate}%</option>`);
-    sel.value = String(p.gst_rate);
+    sel.insertAdjacentHTML('beforeend', `<option value="${f.gst_rate}">${f.gst_rate}%</option>`);
+    sel.value = String(f.gst_rate);
   }
-  set('prod-cost', p?.cost_price || '');
-  set('prod-pack', p?.pack_size);
-  set('prod-hsn', p?.hsn_code);
-  set('prod-sort', p ? p.sort_order : (allProducts.length + 1));
-  set('prod-desc', p?.description);
-  // The unit of a product that was already ordered cannot change (old bills use it)
-  document.getElementById('prod-unit').disabled = !!(p && p.times_ordered);
-  document.getElementById('prod-unit-note').innerText = p && p.times_ordered ? 'Already ordered, unit is fixed.' : '';
+  set('prod-hsn', f?.hsn_code);
+  set('prod-sort', f ? f.sort_order : (productGroups.length + 1));
+  set('prod-desc', f?.description);
+  // A product already ordered keeps its unit (old bills use it); litres may only be renamed to packs
+  const ordered = g && g.items.some(p => p.times_ordered);
+  const unitSel = document.getElementById('prod-unit');
+  [...unitSel.options].forEach(o => {
+    o.disabled = !!ordered && o.value !== f.unit && !(f.unit === 'L' && PACK_UNITS.includes(o.value));
+  });
+  document.getElementById('prod-unit-note').innerText = ordered
+    ? (f.unit === 'L' ? 'Already ordered: can only change to pouch / bottle / packet.' : 'Already ordered, unit is fixed.') : '';
+  document.getElementById('prod-group-names').innerHTML = productGroups.filter(x => x !== g)
+    .map(x => `<option value="${esc(x.name)}">`).join('');
+  document.getElementById('prod-sizes').innerHTML = '';
+  (g ? g.items : [{}]).forEach(v => addSizeRow(v));
+  if (addSize) addSizeRow();
   document.getElementById('prod-result').innerHTML = '';
   new bootstrap.Modal(document.getElementById('modalProduct')).show();
 };
@@ -1408,25 +1544,37 @@ function setupProducts() {
   if (!nav) return;
   nav.addEventListener('click', loadProducts);
   document.getElementById('prod-show-off').addEventListener('change', renderProducts);
+  document.getElementById('prod-unit').addEventListener('change', updateSizeHints);
   loadProducts();
   document.getElementById('form-product').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const id = document.getElementById('prod-id').value;
     const val = (k) => document.getElementById(k).value.trim();
+    const num = (el) => el.value.trim() === '' ? null : parseFloat(el.value);
+    const packs = PACK_UNITS.includes(val('prod-unit'));
+    const variants = [...document.querySelectorAll('#prod-sizes tr')].map(tr => ({
+      id: parseInt(tr.dataset.id) || null,
+      variant_name: tr.querySelector('.ps-size').value.trim() || null,
+      litres_per_unit: packs ? num(tr.querySelector('.ps-litres')) : null,
+      standard_b2b_price: num(tr.querySelector('.ps-price')),
+      cost_price: num(tr.querySelector('.ps-cost')) || 0,
+      sku: tr.querySelector('.ps-sku').value.trim() || null,
+    }));
     const data = {
       product_name: val('prod-name'), category: val('prod-category') || 'Milk', unit: val('prod-unit'),
-      standard_b2b_price: parseFloat(val('prod-price')), gst_rate: parseFloat(val('prod-gst')) || 0,
-      cost_price: parseFloat(val('prod-cost')) || 0, pack_size: val('prod-pack') || null, hsn_code: val('prod-hsn') || null,
-      sort_order: parseInt(val('prod-sort')) || 0, description: val('prod-desc') || null,
+      gst_rate: parseFloat(val('prod-gst')) || 0, hsn_code: val('prod-hsn') || null,
+      sort_order: parseInt(val('prod-sort')) || 0, description: val('prod-desc') || null, variants,
     };
-    const old = id ? allProducts.find(x => x.id === parseInt(id)) : null;
-    if (old && old.standard_b2b_price !== data.standard_b2b_price && !confirm(
-      `Change the rate of ${old.product_name} from ${inr(old.standard_b2b_price)} to ${inr(data.standard_b2b_price)}?\n` +
-      'Customers on the standard rate pay the new rate on orders not dispatched yet. Delivered orders keep the old rate.')) return;
+    if (packs && variants.some(v => !v.litres_per_unit) && !confirm(
+      'Some sizes have no "Litres in 1" filled in, so their milk is not counted in litre totals. Save anyway?')) return;
+    const changed = variants.filter(v => v.id).map(v => ({ v, old: allProducts.find(p => p.id === v.id) }))
+      .filter(x => x.old && x.old.standard_b2b_price !== x.v.standard_b2b_price);
+    if (changed.length && !confirm(changed.map(x =>
+      `Change the rate of ${x.old.product_name} from ${inr(x.old.standard_b2b_price)} to ${inr(x.v.standard_b2b_price)}?`).join('\n') +
+      '\nCustomers on the standard rate pay the new rate on orders not dispatched yet. Delivered orders keep the old rate.')) return;
     try {
-      const res = await DairyAPI.saveProduct(id ? parseInt(id) : null, data);
+      const res = await DairyAPI.saveProductGroup(data);
       bootstrap.Modal.getInstance(document.getElementById('modalProduct')).hide();
-      document.getElementById('products-result').innerHTML = `<span class="text-success">${esc(res.product_name)}: ${esc(res.message || 'Saved.')}</span>`;
+      document.getElementById('products-result').innerHTML = `<span class="text-success">${esc(data.product_name)}: ${esc(res.message || 'Saved.')}</span>`;
       await loadProducts();
     } catch (err) {
       document.getElementById('prod-result').innerHTML = `<span class="text-danger">${esc(err.message)}</span>`;
@@ -2138,6 +2286,25 @@ function isoLocal(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// Dairy Settings: what the cut-off means, in words, for tomorrow's orders
+function showCutoffExample() {
+  const el = document.getElementById('bs-cutoff-example');
+  const v = document.getElementById('bs-order_cutoff_time').value;
+  if (!el) return;
+  if (!v) { el.innerText = ''; return; }
+  const [h, m] = v.split(':').map(Number);
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+  const deadline = new Date(tomorrow); deadline.setHours(h, m, 0, 0);
+  if (h >= 12) deadline.setDate(deadline.getDate() - 1);
+  const fmt = (d, o) => d.toLocaleString('en-IN', o);
+  el.innerText = `Example: orders for ${fmt(tomorrow, { day: '2-digit', month: 'short' })} can be changed till `
+    + `${fmt(deadline, { hour: 'numeric', minute: '2-digit', hour12: true })} on ${fmt(deadline, { day: '2-digit', month: 'short' })}.`;
+}
+
+function billDayLabel(iso) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function billMoney(n) {
   return '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -2233,7 +2400,8 @@ window.previewBills = async function() {
   document.getElementById('bill-preview-label').innerText =
     `${data.period.label} (${data.period.start_date} → ${data.period.end_date})`;
   const rows = data.customers;
-  const notOver = data.period.end_date > isoLocal(new Date());
+  // Bill periods are order days; the last day's orders are delivered the next morning
+  const notOver = data.period.ready === undefined ? data.period.end_date > isoLocal(new Date()) : !data.period.ready;
   const isReady = (r) => !notOver && !r.already_billed && !r.undelivered_orders && r.delivered_anything;
   const ready = rows.filter(isReady);
   document.getElementById('bill-preview-tbody').innerHTML = rows.map((r, i) => {
@@ -2267,9 +2435,13 @@ window.previewBills = async function() {
     </tr>`;
   const note = document.getElementById('bill-preview-note');
   const pendingClaims = rows.filter(r => r.pending_claims && !r.already_billed).length;
-  note.innerHTML = notOver
-    ? `<span class="text-warning">This period runs till ${esc(data.period.end_date)}. Bills can be made after it is over (or choose a custom period up to today).</span>`
-    : pendingClaims ? `<span class="text-warning">${pendingClaims} customer(s) have claims waiting for your decision. Decide them first so they are deducted inside the bill.</span>` : '';
+  const deliveries = data.period.deliveries_from
+    ? `<div class="text-muted">Orders of ${esc(billDayLabel(data.period.start_date))} to ${esc(billDayLabel(data.period.end_date))} `
+      + `(delivered ${esc(billDayLabel(data.period.deliveries_from))} to ${esc(billDayLabel(data.period.deliveries_to))}). `
+      + `Each order is billed on the day it was ordered, the day before its delivery.</div>` : '';
+  note.innerHTML = (notOver
+    ? `<span class="text-warning">The last orders of this period are delivered on ${esc(billDayLabel(data.period.deliveries_to || data.period.end_date))}. Bills can be made after that delivery.</span>`
+    : pendingClaims ? `<span class="text-warning">${pendingClaims} customer(s) have claims waiting for your decision. Decide them first so they are deducted inside the bill.</span>` : '') + deliveries;
   document.getElementById('bill-preview-panel').classList.remove('d-none');
 };
 
@@ -2388,6 +2560,7 @@ window.openBusinessSettings = async function() {
   try {
     const profile = await DairyAPI.getBusinessProfile();
     BUSINESS_FIELDS.forEach(f => { document.getElementById(`bs-${f}`).value = profile[f] || ''; });
+    showCutoffExample();
     new bootstrap.Modal(document.getElementById('modalBusinessSettings')).show();
   } catch (err) {
     alert('Could not load dairy details: ' + err.message);
@@ -2446,6 +2619,7 @@ The extra ${billMoney(amount - bill.balance_due)} will go to the customer's othe
     }
   });
 
+  document.getElementById('bs-order_cutoff_time').addEventListener('input', showCutoffExample);
   document.getElementById('form-business-settings').addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = {};
@@ -2756,7 +2930,9 @@ function setupModalForms() {
       gstin: val('cust-gstin') || null,
       delivery_address: val('cust-address'),
       billing_address: val('cust-billing-address') || null,
-      milk_rate: parseFloat(val('cust-milk-rate')),
+      rates: [...document.querySelectorAll('#cust-rates .cust-rate')].map(el => ({
+        product_id: parseInt(el.dataset.product), rate: el.value.trim() === '' ? null : parseFloat(el.value),
+      })),
       assigned_route_id: parseInt(val('cust-route')) || null,
       assigned_driver_id: parseInt(val('cust-driver')) || null,
       route_stop_sequence: parseInt(val('cust-stop')) || 1,
@@ -2809,13 +2985,20 @@ function setupModalForms() {
     }
   });
 
-  // A customer put on a route gets that route's delivery boy unless one is already chosen
+  // A customer put on a route gets that route's delivery boy (unless a different one was picked by hand)
+  let lastRouteDriver = null;
+  document.getElementById('cust-route').addEventListener('focus', () => {
+    const r = routesCache.find(x => String(x.id) === document.getElementById('cust-route').value);
+    lastRouteDriver = r && r.driver_id ? String(r.driver_id) : null;
+  });
   document.getElementById('cust-route').addEventListener('change', () => {
     const r = routesCache.find(x => String(x.id) === document.getElementById('cust-route').value);
     const driverSelect = document.getElementById('cust-driver');
-    if (r && r.driver_id && !driverSelect.value && [...driverSelect.options].some(o => o.value === String(r.driver_id))) {
+    const followsRoute = !driverSelect.value || driverSelect.value === lastRouteDriver;
+    if (r && r.driver_id && followsRoute && [...driverSelect.options].some(o => o.value === String(r.driver_id))) {
       driverSelect.value = String(r.driver_id);
     }
+    lastRouteDriver = r && r.driver_id ? String(r.driver_id) : null;
   });
 
   // Delivery boy add / edit

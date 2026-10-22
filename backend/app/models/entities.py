@@ -117,6 +117,12 @@ class Product(Base):
     is_active = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)  # order in the customer's order form
     description = Column(String(200), nullable=True)
+    # Pack sizes of one product: same group_name, own variant_name ("500 ML", "1 L"). product_name is
+    # then "<group> - <variant>", so bills and reports show the full name.
+    group_name = Column(String(100), nullable=True)
+    variant_name = Column(String(50), nullable=True)
+    # Litres of milk in one unit (0.5 for a 500 ML pouch). Empty: 1 for a product sold per litre, else 0.
+    litres_per_unit = Column(Float, nullable=True)
 
 # 7. Customer Specific Pricing
 class CustomerPricing(Base):
@@ -331,6 +337,8 @@ class Invoice(Base):
     previous_balance = Column(Float, default=0.0)  # dues (+) or advance (-) before this bill
     advance_applied = Column(Float, default=0.0)  # customer's advance used to pay this bill when it was made
     bill_lines = Column(Text, nullable=True)  # JSON snapshot of day-wise qty / rate / amount
+    # "order": period and lines are order days (delivery - 1). Empty: older bills, in delivery days.
+    day_basis = Column(String(10), nullable=True)
 
     customer = relationship("Customer")
     order = relationship("Order")
