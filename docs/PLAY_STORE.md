@@ -35,7 +35,19 @@ The app only works after login, so Google needs a working login.
 
 Created on 24 Oct 2026: customer **CUST-002 "Play Store Review (Demo)"**, mobile **9000000001**, no route. The password is not kept in git; reset it from the admin panel (Customer → Login) if it is lost, and update App access in Play Console.
 
-How it was made (to make another one):
+Dairy Staff (admin) demo, created 25 Oct 2026: user **playstore_demo_admin**, mobile **9000000002**, role admin with **read_only** set. It sees every admin screen, but the server refuses every change ("This is a view-only demo login"). It sees the dairy's real customers, so turn it off (is_active = 0) once the app is approved, and turn it on again only for later reviews.
+
+App access text for Play Console (put the passwords in place of the brackets):
+
+```
+The app has two logins on the first screen.
+1) Customer: choose "Customer". Mobile number 9000000001, password <customer password>.
+   A demo customer of the dairy; its orders are not delivered.
+2) Dairy Staff: choose "Dairy Staff". Mobile number 9000000002, password <admin password>.
+   A view-only staff login: every screen opens, but changes are not saved.
+```
+
+How the demo customer was made (to make another one):
 
 1. Admin panel → B2B Customers → Add customer:
    - Name: `Play Store Review (Demo)`
