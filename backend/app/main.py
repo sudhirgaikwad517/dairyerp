@@ -73,6 +73,10 @@ def start_background_jobs():
     if os.environ.get("DAIRY_AUTO_DISPATCH", "1") != "0":
         from backend.app.services.dispatch_control import start_auto_dispatcher
         start_auto_dispatcher(SessionLocal)
+    # Last month's bills on the day of the month set in Dairy Settings
+    if os.environ.get("DAIRY_AUTO_BILLS", "1") != "0":
+        from backend.app.services.auto_billing import start_auto_biller
+        start_auto_biller(SessionLocal)
     # Bills and notices by email (only sends when the admin has turned email on)
     if os.environ.get("DAIRY_EMAIL_WORKER", "1") != "0":
         from backend.app.services.email_service import start_email_worker

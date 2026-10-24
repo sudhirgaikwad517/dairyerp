@@ -419,6 +419,9 @@ class BusinessProfile(Base):
     order_cutoff_time = Column(String(5), default="21:00")
     # Each delivery day's confirmed orders go to the delivery boys automatically at this time ("HH:MM", 24h)
     dispatch_time = Column(String(5), default="04:00")
+    # Last month's monthly bills are made for every customer on this day of the month (1-28; empty = off)
+    auto_bill_day = Column(Integer, nullable=True)
+    auto_bill_done_for = Column(String(7), nullable=True)  # "YYYY-MM": the month last billed automatically
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 

@@ -2524,6 +2524,14 @@ async function loadInvoicesTable() {
     console.error('Failed to load customers for billing:', err);
   }
 
+  // The list opens on the month of the newest bill (a daily bill this month, or last month's bills)
+  try {
+    const latest = await DairyAPI.getLatestBillMonth();
+    if (latest.month) document.getElementById('bills-filter-month').value = latest.month;
+  } catch (err) {
+    console.error('Could not find the newest bill:', err);
+  }
+
   updateBillFilterUI();
   await loadBills();
 }
@@ -2596,6 +2604,7 @@ window.previewBills = async function() {
       : !r.delivered_anything ? '<span class="badge bg-light text-muted">Nothing delivered</span>'
       : notOver ? '<span class="badge bg-warning text-dark">Period not over</span>'
       : '<span class="badge bg-success">Ready</span>';
+    if (r.partly_billed) status += `<br><small class="text-muted">Days in ${esc(r.partly_billed)} left out</small>`;
     if (r.claims_deducted_amount) status += `<br><small class="text-muted">${billMoney(r.claims_deducted_amount)} claims deducted</small>`;
     if (r.pending_claims && !r.already_billed) status += `<br><small class="text-warning">${r.pending_claims} claim(s) waiting for decision</small>`;
     return `
@@ -2739,7 +2748,7 @@ window.openBillPayment = function(billId) {
 };
 
 const BUSINESS_FIELDS = ['business_name', 'contact_numbers', 'contact_email', 'bank_account_name', 'bank_name', 'bank_account_number',
-  'bank_ifsc', 'bank_branch', 'upi_number', 'gstin', 'address', 'order_cutoff_time', 'dispatch_time'];
+  'bank_ifsc', 'bank_branch', 'upi_number', 'gstin', 'address', 'order_cutoff_time', 'dispatch_time', 'auto_bill_day'];
 
 window.openBusinessSettings = async function() {
   try {
@@ -2809,6 +2818,7 @@ The extra ${billMoney(amount - bill.balance_due)} will go to the customer's othe
     e.preventDefault();
     const data = {};
     BUSINESS_FIELDS.forEach(f => { data[f] = document.getElementById(`bs-${f}`).value; });
+    data.auto_bill_day = data.auto_bill_day ? parseInt(data.auto_bill_day) : null;
     try {
       await DairyAPI.saveBusinessProfile(data);
       bootstrap.Modal.getInstance(document.getElementById('modalBusinessSettings')).hide();

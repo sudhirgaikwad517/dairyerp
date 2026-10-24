@@ -12,7 +12,7 @@
   <!-- Bootstrap Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <!-- Custom Design System -->
-  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261024a">
+  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261024b">
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 </head>
@@ -1840,6 +1840,13 @@
               <small class="text-dim">On the delivery day, confirmed orders go to the delivery boys at this time (e.g. 04:00).</small>
             </div>
             <div class="col-md-6">
+              <label class="form-label text-muted small">Automatic monthly bills</label>
+              <select id="bs-auto_bill_day" class="form-select form-dairy-control">
+                <option value="">Off (make bills yourself)</option><option value="1">1st of every month</option><option value="2">2nd of every month</option><option value="3">3rd of every month</option><option value="4">4th of every month</option><option value="5">5th of every month</option><option value="6">6th of every month</option><option value="7">7th of every month</option><option value="8">8th of every month</option><option value="9">9th of every month</option><option value="10">10th of every month</option><option value="11">11th of every month</option><option value="12">12th of every month</option><option value="13">13th of every month</option><option value="14">14th of every month</option><option value="15">15th of every month</option><option value="16">16th of every month</option><option value="17">17th of every month</option><option value="18">18th of every month</option><option value="19">19th of every month</option><option value="20">20th of every month</option><option value="21">21st of every month</option><option value="22">22nd of every month</option><option value="23">23rd of every month</option><option value="24">24th of every month</option><option value="25">25th of every month</option><option value="26">26th of every month</option><option value="27">27th of every month</option><option value="28">28th of every month</option>
+              </select>
+              <small class="text-dim">On this day (after 12 noon), last month's bills are made for all customers. You get a notice with the result.</small>
+            </div>
+            <div class="col-md-6">
               <label class="form-label text-muted small">GSTIN (optional)</label>
               <input type="text" id="bs-gstin" class="form-control form-dairy-control" maxlength="15">
             </div>
@@ -2015,7 +2022,7 @@
 <script>window.DAIRY_APP = 'admin';</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <!-- Central API & App JS -->
-<script src="/frontend/js/api.js?v=20261024a"></script>
-<script src="/frontend/js/app.js?v=20261024a"></script>
+<script src="/frontend/js/api.js?v=20261024b"></script>
+<script src="/frontend/js/app.js?v=20261024b"></script>
 </body>
 </html>

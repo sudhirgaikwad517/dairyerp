@@ -49,6 +49,7 @@ class BusinessProfileSchema(BaseModel):
     # from noon = the evening before (21:00). See daily_orders.order_deadline.
     order_cutoff_time: Optional[str] = "21:00"
     dispatch_time: Optional[str] = "04:00"  # each day's orders go to the delivery boys at this time (HH:MM)
+    auto_bill_day: Optional[int] = None  # day of the month (1-28) when last month's bills are made by themselves
 
 
 def _period_response(bill_type: str, start: date, end: date):
@@ -107,6 +108,13 @@ def list_bills(
     for b in bills:
         b.pop("lines")
     return bills
+
+
+@router.get("/billing/latest-bill-month")
+def latest_bill_month(db: Session = Depends(get_db)):
+    """Month (YYYY-MM) of the bill made last, so the Bills list opens where the newest bills are."""
+    inv = db.query(Invoice).filter(Invoice.bill_type.isnot(None)).order_by(Invoice.id.desc()).first()
+    return {"month": inv.period_start.strftime("%Y-%m") if inv and inv.period_start else None}
 
 
 @router.get("/billing/bills/{bill_id}")
@@ -199,11 +207,16 @@ def update_profile(payload: BusinessProfileSchema, db: Session = Depends(get_db)
         raise HTTPException(status_code=400, detail=(
             f"The order cut-off ({payload.order_cutoff_time}) must be before the dispatch time "
             f"({payload.dispatch_time}), so orders are locked before they go to the delivery boys."))
+    if payload.auto_bill_day is not None and not 1 <= payload.auto_bill_day <= 28:
+        raise HTTPException(status_code=400, detail="Automatic monthly bill day must be from 1 to 28")
     email = (payload.contact_email or "").strip()
     if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise HTTPException(status_code=400, detail="Enter a valid contact email, like info@yourdairy.com")
     payload.contact_email = email or None
     p = get_business_profile(db)
+    if payload.auto_bill_day != p.auto_bill_day:
+        # Turned on or moved: last month is still billed this month if it has not been yet
+        p.auto_bill_done_for = None
     for k, v in payload.model_dump().items():
         setattr(p, k, v.strip() if isinstance(v, str) else v)
     p.updated_at = datetime.utcnow()

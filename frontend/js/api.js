@@ -448,6 +448,10 @@ const DairyAPI = {
     return apiRequest(`/billing/bills${toQuery(params)}`);
   },
 
+  getLatestBillMonth() {
+    return apiRequest('/billing/latest-bill-month');
+  },
+
   deleteBill(billId) {
     return apiRequest(`/billing/bills/${billId}`, { method: 'DELETE' });
   },
