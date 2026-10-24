@@ -30,3 +30,7 @@ mobile_app/**/.dart_tool/
 mobile_app/**/key.properties
 mobile_app/**/*.jks
 mobile_app/**/*.keystore
+
+# Customer portal build: CanvasKit comes from the CDN
+frontend/customer/canvaskit/
+frontend/customer/.last_build_id

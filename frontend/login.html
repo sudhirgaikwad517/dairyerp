@@ -130,6 +130,8 @@
                   placeholder: '10-digit mobile number', help: 'Forgot password? Call the dairy to reset it.',
                   points: ['Order milk for the next 7 days', 'See your bills and download PDFs', 'Check your account balance'] },
     };
+    // Customers log in inside the customer portal itself (the same app as on the phone)
+    if (DAIRY_APP === 'customer') window.location.replace('/customer/');
     const cfg = APPS[DAIRY_APP];
     document.title = `${cfg.title} Login | Akash Dairy Farm`;
     document.getElementById('login-subtitle').innerText = `Log in to the ${cfg.title}`;
@@ -144,7 +146,7 @@
     document.getElementById('login-help').innerText = cfg.help;
     document.getElementById('app-switch').innerHTML = Object.entries(APPS)
       .filter(([key]) => key !== DAIRY_APP)
-      .map(([key, a]) => `<a href="/login?app=${key}">${a.title}</a>`).join('');
+      .map(([key, a]) => `<a href="${key === 'customer' ? '/customer/' : `/login?app=${key}`}">${a.title}</a>`).join('');
 
     // Already logged in to this app: go straight in
     if (Auth.token()) window.location.replace(cfg.home);

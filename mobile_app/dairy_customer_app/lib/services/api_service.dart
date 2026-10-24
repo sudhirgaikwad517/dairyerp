@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -23,10 +24,12 @@ class ApiService {
   /// Server address. Defaults to this computer; for a phone or emulator pass the server's address, e.g.
   ///   flutter run --dart-define=API_BASE_URL=http://192.168.1.10:8000/api/v1
   ///   (Android emulator: http://10.0.2.2:8000/api/v1)
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000/api/v1',
-  );
+  /// In the browser the app is served by the server itself, so it uses the same address.
+  static final String baseUrl = const bool.hasEnvironment('API_BASE_URL')
+      ? const String.fromEnvironment('API_BASE_URL')
+      : kIsWeb
+          ? '${Uri.base.origin}/api/v1'
+          : 'http://127.0.0.1:8000/api/v1';
 
   /// A page on the dairy's website (same server), e.g. /privacy, /terms, /delete-account.
   static Uri siteUrl(String path) => Uri.parse(baseUrl.replaceFirst(RegExp(r'/api/v1/?$'), '') + path);

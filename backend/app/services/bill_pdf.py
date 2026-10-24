@@ -6,9 +6,12 @@ from datetime import date
 from typing import Dict, List
 
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import Image, PageBreak, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (CondPageBreak, Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table,
+                                TableStyle)
 
 BLUE = colors.HexColor("#BDD7EE")
 LOGO = os.path.join(os.path.dirname(__file__), "bill_logo.png")
@@ -32,6 +35,238 @@ def _day_label(day_iso: str, single_month: bool) -> str:
 
 
 UNIT_WORD = {"L": "LTR", "kg": "KG", "pcs": "PCS", "packet": "PKT", "box": "BOX", "pouch": "POUCH", "bottle": "BTL"}
+
+
+def _bank_details(profile) -> List[str]:
+    return [
+        "PAYMENT DETAILS",
+        profile.bank_account_name or profile.business_name,
+        profile.bank_name or "",
+        f"A/C NO: {profile.bank_account_number or ''}",
+        f"IFSC CODE: {profile.bank_ifsc or ''}",
+        f"BRANCH : {profile.bank_branch or ''}",
+        f"GOOGLE PAY/ PHONE PAY : {profile.upi_number or ''}",
+    ]
+
+
+def _amount_rows(bill: Dict, amount_note: str = "", claim_note: str = "", hide_empty_advance: bool = True) -> List[tuple]:
+    """AMOUNT -> claims -> advance -> billing amount -> outstanding -> paid / balance, as (label, value)."""
+    rows = []
+    claims_amount = bill.get("claims_amount", 0.0)
+    if claims_amount:
+        # Amount for the milk as delivered, then the claims taken off it
+        rows += [
+            ("AMOUNT" + amount_note, fmt_num(bill.get("original_amount", bill["amount"]))),
+            ("LESS: CLAIMS" + claim_note, "- " + fmt_num(claims_amount)),
+            ("NET AMOUNT", fmt_num(bill["amount"])),
+        ]
+    else:
+        rows.append(("AMOUNT", fmt_num(bill["amount"])))
+    if bill["advance"] or not hide_empty_advance:
+        rows += [
+            ("ADVANCE", fmt_num(bill["advance"]) if bill["advance"] else ""),
+            (f"BILLING AMOUNT({bill['period_label']})", fmt_num(bill["billing_amount"])),
+        ]
+    rows.append((bill.get("outstanding_label", "OUTSTANDING"), fmt_num(bill["outstanding"])))
+    if not bill.get("is_statement", False):
+        # A bill always shows where it stands today: later payments and the account balance
+        rows += [
+            ("PAID", fmt_num(bill.get("paid_amount", 0.0))),
+            ("BALANCE DUE (THIS BILL)", fmt_num(bill.get("balance_due", 0.0))),
+        ]
+        if bill.get("excess_paid"):
+            rows.append(("EXCESS PAID (KEPT AS ADVANCE)", fmt_num(bill["excess_paid"])))
+        current = bill.get("current_outstanding", 0.0)
+        label = bill.get("current_outstanding_label", "TOTAL OUTSTANDING")
+        if current < 0:
+            # Customer has paid more than all bills: show it as advance, not a minus outstanding
+            label = label.replace("TOTAL OUTSTANDING", "ADVANCE BALANCE")
+        rows.append((label, fmt_num(abs(current))))
+    return rows
+
+
+PAGE_W = sum(COL_WIDTHS)
+LIGHT = colors.HexColor("#EEF5FB")
+CELL = ParagraphStyle("cell", fontName="Helvetica-Bold", fontSize=7.5, leading=9, alignment=TA_CENTER)
+CELL_LEFT = ParagraphStyle("cell_left", parent=CELL, alignment=TA_LEFT)
+MAX_PRODUCT_COLS = 6
+
+
+def _split_name(name: str):
+    """'Cow Milk Brand Pouch - 1 L' -> ('Cow Milk Brand Pouch', '1 L')."""
+    head, sep, tail = (name or "").rpartition(" - ")
+    return (head, tail) if sep else (name or "", "")
+
+
+def _section(title: str, header: List, rows: List[List], widths: List[float], left_cols: int = 1,
+             total_row: bool = False, repeat: bool = False):
+    """A titled grid: blue title and header rows, light bands, numbers centred."""
+    n = len(widths)
+    data = [[title] + [""] * (n - 1), header] + rows
+    style = [
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("SPAN", (0, 0), (-1, 0)),
+        ("FONTSIZE", (0, 0), (-1, 0), 9),
+        ("BACKGROUND", (0, 0), (-1, 1), BLUE),
+        ("GRID", (0, 0), (-1, -1), 0.6, GRID),
+        ("BOX", (0, 0), (-1, -1), 1.2, GRID),
+        ("ALIGN", (left_cols, 1), (-1, -1), "CENTER"),
+        ("TOPPADDING", (0, 2), (-1, -1), 1.6), ("BOTTOMPADDING", (0, 2), (-1, -1), 1.6),
+    ]
+    body_end = len(data) - (2 if total_row else 1)
+    for r in range(2, body_end + 1):
+        if r % 2:
+            style.append(("BACKGROUND", (0, r), (-1, r), LIGHT))
+    if total_row:
+        style += [("BACKGROUND", (0, -1), (-1, -1), BLUE), ("FONTSIZE", (0, -1), (-1, -1), 9)]
+    table = Table(data, colWidths=widths, repeatRows=2 if repeat else 0)
+    table.setStyle(TableStyle(style))
+    return table if repeat else KeepTogether(table)
+
+
+def _multi_bill(bill: Dict, profile) -> List:
+    """Bill with several products: a day x product register, product totals, then payment."""
+    lines: List[Dict] = bill["lines"]
+    products = bill.get("products") or []
+    start = date.fromisoformat(bill["period_start"])
+    end = date.fromisoformat(bill["period_end"])
+    statement = bill.get("is_statement", False)
+    period_title = "Month" if bill["bill_type"] == "monthly" else ("Date" if start == end else "Period")
+    gstin = (profile.gstin or "").strip()
+    contact = f"CONTACT: {profile.contact_numbers or ''}" + (f"   |   GSTIN: {gstin}" if gstin else "")
+    w_left, w_right = PAGE_W * 0.62, PAGE_W * 0.38
+    head = Table([
+        [profile.business_name.upper(), ""],
+        [contact + ("   |   STATEMENT" if statement else ""), ""],
+        [f"NAME :   {bill['customer_name'].upper()}", f"MOBILE:  {bill['customer_phone'] or ''}"],
+        [Paragraph(f"Address :  {bill['customer_address'] or ''}", CELL_LEFT), f"{period_title} :  {bill['period_label']}"],
+    ], colWidths=[w_left, w_right])
+    head.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BOX", (0, 0), (-1, -1), 1.2, GRID),
+        ("SPAN", (0, 0), (-1, 0)), ("SPAN", (0, 1), (-1, 1)),
+        ("BACKGROUND", (0, 0), (-1, 1), BLUE),
+        ("ALIGN", (0, 0), (-1, 1), "CENTER"),
+        ("FONTSIZE", (0, 0), (-1, 0), 18),
+        ("TOPPADDING", (0, 0), (-1, 0), 8), ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+        ("BOTTOMPADDING", (0, 1), (-1, 1), 6),
+        ("LINEBELOW", (0, 1), (-1, 1), 1, GRID),
+        ("FONTSIZE", (1, 3), (1, 3), 8 if len(bill["period_label"]) > 14 else 9),
+    ]))
+    story = [head, Spacer(1, 3 * mm)]
+
+    # Day x product register: only the quantity per day, rates and amounts are in the totals below
+    pids = [p["product_id"] for p in products]
+    days: Dict[str, Dict] = {}
+    for l in lines:
+        if l["qty"] > 0 or l.get("claim_qty"):
+            days.setdefault(l["date"], {})[l.get("product_id")] = l
+    day_keys = sorted(days)
+    single_month = start.year == end.year and start.month == end.month
+    date_w, amount_w = 20 * mm, 24 * mm
+    # Many products: split the columns into equal parts (8 -> 4 + 4), each part with its own dates
+    parts = max(1, -(-len(pids) // MAX_PRODUCT_COLS))
+    size = max(1, -(-len(pids) // parts))
+    chunks = [pids[i:i + size] for i in range(0, len(pids), size)] or [[]]
+    with_amount = len(chunks) == 1  # with many products the day amount needs every column; skip it
+    if len(day_keys) <= 1:
+        chunks = []  # one day: the product totals below already show it
+    names = {p["product_id"]: p["product"] for p in products}
+    for n, chunk in enumerate(chunks):
+        prod_w = (PAGE_W - date_w - (amount_w if with_amount else 0)) / max(1, len(chunk))
+        header = ["DATE"]
+        for pid in chunk:
+            group, size = _split_name(names[pid])
+            header.append(Paragraph(f"{group}<br/>{size}" if size else group, CELL))
+        rows = []
+        for d in day_keys:
+            dd = date.fromisoformat(d)
+            row = [dd.strftime("%d %a") if single_month else dd.strftime("%d/%m")]
+            for pid in chunk:
+                l = days[d].get(pid)
+                if not l:
+                    row.append("")
+                    continue
+                qty = fmt_num(l["qty"]) if l["qty"] > 0 else "-"
+                row.append(qty + (" *" if l.get("claim_qty") else ""))
+            if with_amount:
+                row.append(fmt_num(sum(l["amount"] for l in days[d].values())))
+            rows.append(row)
+        if with_amount:
+            header.append("AMOUNT")
+        if not rows:
+            rows = [["", "Nothing delivered in this period"] + [""] * (len(header) - 2)]
+        title = "DAILY DELIVERY (QUANTITY)" + (f" - PART {n + 1} OF {len(chunks)}" if len(chunks) > 1 else "")
+        widths = [date_w] + [prod_w] * len(chunk) + ([amount_w] if with_amount else [])
+        if n:
+            story.append(CondPageBreak(70 * mm))  # start a part on a new page rather than with a few rows
+        story += [_section(title, header, rows, widths, repeat=True), Spacer(1, 3 * mm)]
+
+    # One line per product: total quantity, litres, rate and amount
+    rows = []
+    for p in products:
+        litres = p["qty"] * p.get("litres_per_unit", 0)
+        rows.append([Paragraph(p["product"], CELL_LEFT), fmt_num(p["qty"]),
+                     UNIT_WORD.get(p["unit"], (p["unit"] or "").upper()), fmt_num(round(litres, 3)) if litres else "-",
+                     fmt_num(p["rate"]) + (" (avg)" if p.get("mixed_rates") else ""), fmt_num(p["amount"])])
+    rows.append(["TOTAL", "", "", fmt_num(bill["total_qty"]), "",
+                 fmt_num(bill.get("original_amount", bill["amount"]) if bill.get("claims_amount") else bill["amount"])])
+    widths = [66 * mm, 22 * mm, 20 * mm, 24 * mm, 24 * mm]
+    widths.append(PAGE_W - sum(widths))
+    story += [_section("PRODUCT TOTALS" if chunks else "PRODUCTS", ["PRODUCT", "QTY", "UNIT", "MILK (LTR)", "RATE", "AMOUNT"], rows, widths,
+                       total_row=True), Spacer(1, 3 * mm)]
+
+    adjustments: List[Dict] = bill.get("adjustments", [])
+    if adjustments:
+        rows = []
+        for adj in adjustments:
+            refunded = adj["mode"] == "refunded"
+            rows.append([date.fromisoformat(adj["date"]).strftime("%d/%m/%Y"), Paragraph(adj.get("product", ""), CELL_LEFT),
+                         fmt_num(adj["original_qty"]), fmt_num(adj["claim_qty"]),
+                         fmt_num(adj["final_qty"]) + (" (same)" if refunded else ""), fmt_num(adj["rate"]),
+                         f"REFUNDED {fmt_num(adj['amount'])}" if refunded else fmt_num(adj["amount"])])
+        widths = [22 * mm, 52 * mm, 20 * mm, 20 * mm, 22 * mm, 18 * mm]
+        widths.append(PAGE_W - sum(widths))
+        story += [_section("CLAIM ADJUSTMENTS (* marked days above)",
+                           ["DATE", "PRODUCT", "ORIGINAL", "CLAIM", "FINAL", "RATE", "DEDUCTED"], rows, widths, left_cols=2),
+                  Spacer(1, 3 * mm)]
+
+    gst_rows = bill.get("gst") or []
+    if gst_rows:
+        rows = [[f"{fmt_num(g['gst_rate'])}%", fmt_num(g["taxable"]), fmt_num(g["cgst"]), fmt_num(g["sgst"]),
+                 fmt_num(g["gst"]), fmt_num(g["amount"])] for g in gst_rows]
+        story += [_section("GST SUMMARY (INCLUDED IN THE RATES)",
+                           ["GST RATE", "TAXABLE VALUE", "CGST", "SGST", "TOTAL GST", "AMOUNT"], rows, [PAGE_W / 6] * 6,
+                           left_cols=0), Spacer(1, 3 * mm)]
+
+    left_details = _bank_details(profile)
+    right_rows = _amount_rows(bill)
+    data = []
+    for i in range(max(len(left_details), len(right_rows))):
+        label, value = right_rows[i] if i < len(right_rows) else ("", "")
+        data.append([left_details[i] if i < len(left_details) else "", label, value])
+    pay = Table(data, colWidths=[PAGE_W * 0.46, PAGE_W * 0.36, PAGE_W * 0.18])
+    style = [
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.6, GRID),
+        ("BOX", (0, 0), (-1, -1), 1.2, GRID),
+        ("BACKGROUND", (0, 0), (1, -1), BLUE),
+        ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+    ]
+    for r, (label, _) in enumerate(right_rows):
+        if len(label) > 28:
+            style.append(("FONTSIZE", (1, r), (1, r), 7.5))
+        if label.startswith(("BALANCE DUE", "TOTAL OUTSTANDING")) or (statement and r == len(right_rows) - 1):
+            style += [("FONTSIZE", (2, r), (2, r), 10), ("BACKGROUND", (2, r), (2, r), LIGHT)]
+    pay.setStyle(TableStyle(style))
+    story.append(KeepTogether(pay))
+    return story
 
 
 def _bill_table(bill: Dict, profile) -> Table:
@@ -80,7 +315,6 @@ def _bill_table(bill: Dict, profile) -> Table:
     statement = bill.get("is_statement", False)
     adjustments: List[Dict] = bill.get("adjustments", [])
     claims_qty = bill.get("claims_qty", round(sum(l.get("claim_qty", 0) for l in lines), 2))
-    claims_amount = bill.get("claims_amount", 0.0)
     milk_word = "MILK" if unit == "L" else ((only or {}).get("product") or "QTY").upper()
     total_milk_label = f"TOTAL {milk_word}" + (f" (AFTER {fmt_num(claims_qty)} {unit_word} CLAIM)" if claims_qty and not multi else "")
     gstin = (profile.gstin or "").strip()
@@ -156,48 +390,10 @@ def _bill_table(bill: Dict, profile) -> Table:
 
     rate_text = (fmt_num(bill["rate"]) + (" (avg)" if bill.get("mixed_rates") else "")) if bill.get("rate") is not None else ""
     pay_start = len(data)
-    left_details = [
-        "PAYMENT DETAILS",
-        profile.bank_account_name or profile.business_name,
-        profile.bank_name or "",
-        f"A/C NO: {profile.bank_account_number or ''}",
-        f"IFSC CODE: {profile.bank_ifsc or ''}",
-        f"BRANCH : {profile.bank_branch or ''}",
-        f"GOOGLE PAY/ PHONE PAY : {profile.upi_number or ''}",
-    ]
-    if multi:
-        right_rows = [("TOTAL MILK (LTR)", fmt_num(bill["total_qty"])), ("PRODUCTS", str(len(products)))]
-    else:
-        right_rows = [(total_milk_label, fmt_num(bill["total_qty"])), ("RATE", rate_text)]
-    if claims_amount:
-        # Amount for the milk as delivered, then the claims taken off it
-        right_rows += [
-            (f"AMOUNT ({fmt_num(bill.get('original_qty', 0))} {unit_word})" if not multi else "AMOUNT",
-             fmt_num(bill.get("original_amount", bill["amount"]))),
-            ("LESS: CLAIMS" + (f" ({fmt_num(claims_qty)} {unit_word})" if not multi else ""), "- " + fmt_num(claims_amount)),
-            ("NET AMOUNT", fmt_num(bill["amount"])),
-        ]
-    else:
-        right_rows.append(("AMOUNT", fmt_num(bill["amount"])))
-    right_rows += [
-        ("ADVANCE", fmt_num(bill["advance"]) if bill["advance"] else ""),
-        (f"BILLING AMOUNT({bill['period_label']})", fmt_num(bill["billing_amount"])),
-        (bill.get("outstanding_label", "OUTSTANDING"), fmt_num(bill["outstanding"])),
-    ]
-    if not statement:
-        # A bill always shows where it stands today: later payments and the account balance
-        right_rows += [
-            ("PAID", fmt_num(bill.get("paid_amount", 0.0))),
-            ("BALANCE DUE (THIS BILL)", fmt_num(bill.get("balance_due", 0.0))),
-        ]
-        if bill.get("excess_paid"):
-            right_rows.append(("EXCESS PAID (KEPT AS ADVANCE)", fmt_num(bill["excess_paid"])))
-        current = bill.get("current_outstanding", 0.0)
-        label = bill.get("current_outstanding_label", "TOTAL OUTSTANDING")
-        if current < 0:
-            # Customer has paid more than all bills: show it as advance, not a minus outstanding
-            label = label.replace("TOTAL OUTSTANDING", "ADVANCE BALANCE")
-        right_rows.append((label, fmt_num(abs(current))))
+    left_details = _bank_details(profile)
+    right_rows = [(total_milk_label, fmt_num(bill["total_qty"])), ("RATE", rate_text)]
+    right_rows += _amount_rows(bill, f" ({fmt_num(bill.get('original_qty', 0))} {unit_word})",
+                               f" ({fmt_num(claims_qty)} {unit_word})", hide_empty_advance=False)
     for i in range(max(len(left_details), len(right_rows))):
         left_text = left_details[i] if i < len(left_details) else ""
         label, value = right_rows[i] if i < len(right_rows) else ("", "")
@@ -287,6 +483,9 @@ def render_bills_pdf(bills: List[Dict], profile) -> bytes:
             story.append(PageBreak())
         if os.path.exists(LOGO):
             story += [Image(LOGO, width=22 * mm, height=22 * mm), Spacer(1, 2 * mm)]
-        story.append(_bill_table(bill, profile))
+        if bill.get("multi_product"):
+            story += _multi_bill(bill, profile)
+        else:
+            story.append(_bill_table(bill, profile))
     doc.build(story)
     return buffer.getvalue()

@@ -9,7 +9,7 @@ if hasattr(time, "tzset"):
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from backend.app.core.config import settings
@@ -132,12 +132,14 @@ def serve_driver_portal():
         return FileResponse(driver_path)
     return {"message": "Driver portal file not found"}
 
+# Customer portal: the same Flutter app as on the phone, built for the browser into frontend/customer
+customer_dir = os.path.join(frontend_dir, "customer")
+if os.path.isdir(customer_dir):
+    app.mount("/customer", StaticFiles(directory=customer_dir, html=True), name="customer")
+
 @app.get("/customer")
 def serve_customer_portal():
-    cust_path = os.path.join(frontend_dir, "customer_portal.html")
-    if os.path.exists(cust_path):
-        return FileResponse(cust_path)
-    return {"message": "Customer portal file not found"}
+    return RedirectResponse("/customer/")
 
 @app.get("/api/health")
 def health_check():

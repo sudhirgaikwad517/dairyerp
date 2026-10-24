@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -36,7 +37,36 @@ class DairyCustomerApp extends StatelessWidget {
       title: 'Akash Dairy Farm',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      builder: kIsWeb ? (context, child) => PhoneFrame(child: child!) : null,
       home: const AuthGate(),
+    );
+  }
+}
+
+/// In a wide browser window, show the app at phone width in the middle so it looks the same as on the phone.
+class PhoneFrame extends StatelessWidget {
+  const PhoneFrame({super.key, required this.child});
+
+  final Widget child;
+  static const double width = 460;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    if (media.size.width <= width + 40) return child;
+    return ColoredBox(
+      color: const Color(0xFFD5DEE3),
+      child: Center(
+        child: Container(
+          width: width,
+          decoration: const BoxDecoration(
+            boxShadow: [BoxShadow(color: Color(0x33000000), blurRadius: 30, spreadRadius: 2)],
+          ),
+          child: ClipRect(
+            child: MediaQuery(data: media.copyWith(size: Size(width, media.size.height)), child: child),
+          ),
+        ),
+      ),
     );
   }
 }
