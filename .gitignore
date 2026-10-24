@@ -34,3 +34,4 @@ mobile_app/**/*.keystore
 # Customer portal build: CanvasKit comes from the CDN
 frontend/customer/canvaskit/
 frontend/customer/.last_build_id
+*.aab

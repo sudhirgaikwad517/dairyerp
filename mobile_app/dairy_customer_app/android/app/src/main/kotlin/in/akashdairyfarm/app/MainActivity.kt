@@ -1,4 +1,4 @@
-package com.dairyerp.dairy_customer_app
+package `in`.akashdairyfarm.app
 
 import io.flutter.embedding.android.FlutterActivity
 

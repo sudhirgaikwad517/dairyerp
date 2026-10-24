@@ -59,7 +59,7 @@ The Dairy decides what customer information is kept and is responsible for it. P
 
 ## 2. Information we collect
 
-- **Account details** given to the Dairy when your account is created: business / customer name, contact person, mobile number, delivery address, GSTIN (if any), login username and password (stored only in encrypted, hashed form).
+- **Account details** given to the Dairy when your account is created: business / customer name, contact person, mobile number, email address (if given), delivery address, GSTIN (if any), login username and password (stored only in encrypted, hashed form).
 - **Orders and deliveries**: milk quantities ordered per day, delivered quantity, shortages and reasons, delivery time, the photo taken by the delivery person at delivery and the customer's signature.
 - **Bills and payments**: bills, rates, amounts paid, payment method (cash / UPI / bank) and reference numbers entered by the Dairy. The App does **not** collect card, UPI PIN or bank login details and does not process payments.
 - **Problems / claims** you report: date, quantity, description and the photos you attach.
