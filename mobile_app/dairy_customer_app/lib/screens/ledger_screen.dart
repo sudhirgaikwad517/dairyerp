@@ -115,6 +115,9 @@ class _LedgerStatementScreenState extends State<LedgerStatementScreen> {
                 ),
                 Text(out > 0 ? 'to pay' : (out < 0 ? 'will be used in your next bill' : 'all clear'),
                     style: TextStyle(color: out > 0 ? const Color(0xFFFFC2C2) : const Color(0xFF7CE0AE), fontSize: 12.5)),
+                if (s.unbilledAmount > 0)
+                  Text('incl. ${rupees(s.unbilledAmount)} delivered, not billed yet',
+                      style: const TextStyle(color: Color(0xFFFFE3A3), fontSize: 12)),
               ],
             ),
           ),

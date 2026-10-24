@@ -6,6 +6,7 @@ from datetime import date
 from backend.app.database import get_db
 from backend.app.api.reports import build_sales_report
 from backend.app.services.day_transport import transport_report
+from backend.app.services.billing_service import unbilled_amounts
 from backend.app.models.entities import (
     Customer, Order, MilkProcurement, ProductionBatch, DeliveryTrip, Delivery, Vehicle, User
 )
@@ -72,7 +73,9 @@ def get_dashboard_overview(
     cost_per_litre = tday["cost_per_litre"] if tday else None
 
     # Outstanding: money customers owe (advances paid by others are shown separately, not netted off)
-    balances = [c.current_outstanding or 0.0 for c in db.query(Customer).all()]
+    # Bills not yet paid plus milk delivered but not billed yet
+    unbilled = unbilled_amounts(db)
+    balances = [(c.current_outstanding or 0.0) + unbilled.get(c.id, 0.0) for c in db.query(Customer).all()]
     total_dues = round(sum(b for b in balances if b > 0), 2)
     total_advance = round(-sum(b for b in balances if b < 0), 2)
     customers_with_dues = sum(1 for b in balances if b > 0)

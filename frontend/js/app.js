@@ -301,6 +301,7 @@ function renderCustomerTable() {
       <td class="text-end text-nowrap">${c.credit_limit > 0 ? money(c.credit_limit) : '<span class="text-muted">No limit</span>'}<br><small class="text-muted">${c.credit_days} days</small></td>
       <td class="text-end fw-bold text-nowrap ${c.current_outstanding > 0 ? 'text-danger' : 'text-success'}">
         ${c.current_outstanding < 0 ? `${money(-c.current_outstanding)}<br><small class="fw-normal">advance</small>` : money(c.current_outstanding)}
+        ${c.unbilled_amount > 0 ? `<br><small class="fw-normal text-muted" title="Milk delivered but not billed yet; included in the total">incl. ${money(c.unbilled_amount)} not billed</small>` : ''}
         ${c.credit_limit > 0 && c.current_outstanding > c.credit_limit ? '<br><span class="badge bg-danger">Over limit</span>' : ''}
       </td>
       <td class="text-nowrap">
@@ -593,6 +594,9 @@ window.viewCustomerLedger = async function(customerId) {
     const out = Number(res.customer.current_outstanding || 0);
     document.getElementById('ledger-credit-limit').innerText = res.customer.credit_limit > 0 ? rs(res.customer.credit_limit) : 'No limit';
     document.getElementById('ledger-outstanding').innerText = bal(out);
+    const unbilled = Number(res.customer.unbilled_amount || 0);
+    document.getElementById('ledger-outstanding-note').innerText = unbilled > 0
+      ? `Bills ${bal(res.customer.billed_outstanding)} + delivered, not billed yet ${rs(unbilled)}` : '';
 
     const tbody = document.getElementById('ledger-tbody');
     tbody.innerHTML = res.ledger.length ? res.ledger.map(row => {

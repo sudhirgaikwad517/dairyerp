@@ -10,7 +10,7 @@ from backend.app.database import get_db
 from backend.app.models.entities import Customer, Delivery, DeliveryRoute, DeliveryTrip, Order, OrderItem, Product, User
 from backend.app.services.attachments import attachments_for
 from backend.app.core.security import require_admin
-from backend.app.services.billing_service import bill_for_delivery_day, get_business_profile
+from backend.app.services.billing_service import bill_for_delivery_day, get_business_profile, outstanding_parts
 from backend.app.services.daily_orders import dispatch_day, order_deadline, set_day_quantity
 from backend.app.services.dispatch_control import (DISPATCH_LOCK, check_manual_dispatch, dispatch_status,
                                                     release_hold, set_hold)
@@ -194,8 +194,9 @@ def create_order(payload: CreateOrderSchema, db: Session = Depends(get_db)):
 
     credit_warning = None
     # Credit limit 0 means no limit has been set for this customer
-    if cust.credit_limit and cust.credit_limit > 0 and (cust.current_outstanding or 0) + order.total_amount > cust.credit_limit:
-        credit_warning = (f"Notice: over credit limit (Outstanding: ₹{cust.current_outstanding:,.2f}, "
+    owed = outstanding_parts(db, cust)["current_outstanding"] if cust.credit_limit and cust.credit_limit > 0 else 0.0
+    if cust.credit_limit and cust.credit_limit > 0 and owed + order.total_amount > cust.credit_limit:
+        credit_warning = (f"Notice: over credit limit (Outstanding: ₹{owed:,.2f}, "
                           f"Limit: ₹{cust.credit_limit:,.2f})")
     return {
         "status": "success",

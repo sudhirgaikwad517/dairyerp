@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from backend.app.api.auth import phone_taken
 from backend.app.core.security import require_admin
 from backend.app.database import get_db
-from backend.app.services.billing_service import main_product
+from backend.app.services.billing_service import main_product, outstanding_parts, unbilled_amounts
 from backend.app.services.order_pricing import set_customer_price
 from backend.app.models.entities import (
     Branch, Customer, CustomerLedger, CustomerPricing, DeliveryRoute, Product, User
@@ -129,6 +129,7 @@ def list_customers(db: Session = Depends(get_db)):
     own_rates = {}
     for cp in db.query(CustomerPricing).all():
         own_rates.setdefault(cp.customer_id, {})[cp.product_id] = cp.custom_price
+    unbilled = unbilled_amounts(db)
     result = []
     for c in customers:
         milk = main_product(db, c.id)
@@ -151,7 +152,8 @@ def list_customers(db: Session = Depends(get_db)):
             "route_stop_sequence": c.route_stop_sequence,
             "credit_limit": c.credit_limit,
             "credit_days": c.credit_days,
-            "current_outstanding": c.current_outstanding,
+            # Total owed now: bills not yet paid plus milk delivered but not billed yet
+            **outstanding_parts(db, c, unbilled.get(c.id, 0.0)),
             "milk_rate": rate,
             # Own rate per product id (products not listed: standard rate)
             "own_rates": own_rates.get(c.id, {}),
@@ -175,6 +177,7 @@ def get_customer_ledger(customer_id: int, db: Session = Depends(get_db)):
         CustomerLedger.customer_id == customer_id
     ).order_by(CustomerLedger.transaction_date.asc(), CustomerLedger.id.asc()).all()
 
+    parts = outstanding_parts(db, customer)
     total_debits = sum(e.debit_amount for e in ledger_entries)
     total_credits = sum(e.credit_amount for e in ledger_entries)
 
@@ -185,7 +188,7 @@ def get_customer_ledger(customer_id: int, db: Session = Depends(get_db)):
             "business_name": customer.business_name,
             "credit_limit": customer.credit_limit,
             "credit_days": customer.credit_days,
-            "current_outstanding": customer.current_outstanding
+            **parts,
         },
         "summary": {
             "total_sales_and_debits": total_debits,

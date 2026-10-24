@@ -28,6 +28,7 @@ class _BillsScreenState extends State<BillsScreen> {
   List<BillItem>? _bills;
   String? _billsError;
   double? _outstanding;
+  double _unbilled = 0;
 
   @override
   void initState() {
@@ -42,7 +43,9 @@ class _BillsScreenState extends State<BillsScreen> {
       if (!mounted) return;
       setState(() {
         _bills = results[0] as List<BillItem>;
-        _outstanding = (results[1] as LedgerStatement).currentOutstanding;
+        final ledger = results[1] as LedgerStatement;
+        _outstanding = ledger.currentOutstanding;
+        _unbilled = ledger.unbilledAmount;
         _billsError = null;
       });
     } on ApiException catch (e) {
@@ -148,7 +151,7 @@ class _BillsScreenState extends State<BillsScreen> {
           padding: EdgeInsets.fromLTRB(16, 16, 16, navBarListPadding(context)),
           children: [
             if (_bills != null && _outstanding != null) ...[
-              _summary(_bills!, _outstanding!),
+              _summary(_bills!, _outstanding!, _unbilled),
               const SizedBox(height: 18),
             ],
             const Text('Bills from the dairy', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
@@ -174,10 +177,10 @@ class _BillsScreenState extends State<BillsScreen> {
     );
   }
 
-  /// Unpaid bills, advance and what is to be paid now; matches the account statement balance.
-  Widget _summary(List<BillItem> bills, double outstanding) {
+  /// Unpaid bills, milk not billed yet, advance and what is to be paid now.
+  Widget _summary(List<BillItem> bills, double outstanding, double unbilled) {
     final unpaid = bills.fold<double>(0, (s, b) => s + (b.balanceDue > 0 ? b.balanceDue : 0));
-    final diff = ((outstanding - unpaid) * 100).round() / 100;
+    final diff = ((outstanding - unpaid - unbilled) * 100).round() / 100;
     Widget cell(String label, String value, Color color) => Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -217,6 +220,7 @@ class _BillsScreenState extends State<BillsScreen> {
           Row(
             children: [
               cell('Unpaid bills', rupees(unpaid), const Color(0xFFFFC2C2)),
+              if (unbilled > 0) cell('Not billed yet', rupees(unbilled), const Color(0xFFFFE3A3)),
               if (diff < 0) cell('Advance', '− ${rupees(-diff)}', const Color(0xFF7CE0AE)),
               if (diff > 0) cell('Other dues', rupees(diff), const Color(0xFFFFC2C2)),
             ],

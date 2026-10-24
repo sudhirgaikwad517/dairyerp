@@ -339,6 +339,45 @@ def bill_for_delivery_day(db: Session, customer_id: int, delivery_day: date) -> 
     ).first()
 
 
+def unbilled_amounts(db: Session, customer_ids: Optional[List[int]] = None) -> Dict[int, float]:
+    """
+    customer id -> amount for milk already delivered that no bill holds yet (less approved claims
+    waiting for that bill). Dues count it at once; making the bill only moves it into the ledger.
+    """
+    q = db.query(Order).filter(Order.status.in_(["delivered", "invoiced", "paid"]))
+    bq = db.query(Invoice.customer_id, Invoice.period_start, Invoice.period_end, Invoice.day_basis).filter(
+        Invoice.bill_type.isnot(None), Invoice.period_start.isnot(None))
+    cq = db.query(DeliveryClaim).filter(DeliveryClaim.status == "approved", DeliveryClaim.settlement.is_(None))
+    if customer_ids is not None:
+        q = q.filter(Order.customer_id.in_(customer_ids))
+        bq = bq.filter(Invoice.customer_id.in_(customer_ids))
+        cq = cq.filter(DeliveryClaim.customer_id.in_(customer_ids))
+    bills: Dict[int, List[tuple]] = {}
+    for cid, start, end, basis in bq.all():
+        bills.setdefault(cid, []).append((start, end, basis == "order"))
+
+    def billed(cid: int, delivery_day: date) -> bool:
+        return any(s <= (bill_day(delivery_day) if by_order else delivery_day) <= e for s, e, by_order in bills.get(cid, []))
+
+    orders = [o for o in q.all() if not billed(o.customer_id, o.delivery_date)]
+    lines = order_lines(db, orders)
+    out: Dict[int, float] = {}
+    for o in orders:
+        out[o.customer_id] = out.get(o.customer_id, 0.0) + sum(r["amount"] for r in lines.get(o.id, []))
+    for c in cq.all():
+        if c.customer_id in out and not billed(c.customer_id, c.issue_date):
+            out[c.customer_id] -= c.credit_amount or 0.0
+    return {cid: round(max(0.0, v), 2) for cid, v in out.items() if round(v, 2) > 0}
+
+
+def outstanding_parts(db: Session, customer: Customer, unbilled: Optional[float] = None) -> Dict[str, float]:
+    """Billed balance (ledger), delivered-not-billed amount and the total the customer owes now."""
+    billed = round(customer.current_outstanding or 0.0, 2)
+    if unbilled is None:
+        unbilled = unbilled_amounts(db, [customer.id]).get(customer.id, 0.0)
+    return {"billed_outstanding": billed, "unbilled_amount": unbilled, "current_outstanding": round(billed + unbilled, 2)}
+
+
 def preview_bills(db: Session, bill_type: str, start: date, end: date, customer_ids: Optional[List[int]] = None) -> List[Dict]:
     query = db.query(Customer)
     if customer_ids:
@@ -683,7 +722,8 @@ def bill_to_dict(inv: Invoice) -> Dict:
                                               "products": [], "multi_product": False}
     f = bill_figures(db, inv)
     prev = inv.previous_balance or 0.0
-    current = round(c.current_outstanding or 0.0, 2) if c else 0.0
+    parts = outstanding_parts(db, c) if c else {"current_outstanding": 0.0, "unbilled_amount": 0.0}
+    current = parts["current_outstanding"]
     deducted_claims = db.query(DeliveryClaim).filter(
         DeliveryClaim.invoice_id == inv.id, DeliveryClaim.settlement.in_(["bill", "credit_note"])
     ).all()
@@ -727,6 +767,7 @@ def bill_to_dict(inv: Invoice) -> Dict:
         "excess_paid": f["excess"],
         "payment_status": inv.payment_status,
         "current_outstanding": current,
+        "unbilled_amount": parts["unbilled_amount"],
         "current_outstanding_label": f"TOTAL OUTSTANDING (AS ON {date.today():%d %b %Y})".upper(),
         "total_payable": round(max(0.0, prev) + f["net"] - f["advance"] - f["paid"], 2),
         "adjustments": claim_adjustments(db, inv.customer_id, inv.period_start, inv.period_end, lines, deducted_claims, inv)
@@ -745,7 +786,8 @@ def build_statement(db: Session, customer: Customer, bill_type: str, start: date
     for l in lines:
         l["original_qty"] = round(l["qty"] + l.get("claim_qty", 0.0), 3)
     s = summarize_lines(lines)
-    balance = round(customer.current_outstanding or 0.0, 2)
+    parts = outstanding_parts(db, customer)
+    balance = parts["current_outstanding"]  # includes milk delivered but not billed yet
     deducted = claims_to_deduct(db, customer.id, start, end, all_approved=True)
     claims_amount = round(sum(l.get("claim_amount", 0.0) for l in lines), 2)
     claims_qty = round(sum(l.get("claim_qty", 0.0) for l in lines), 3)
@@ -772,6 +814,7 @@ def build_statement(db: Session, customer: Customer, bill_type: str, start: date
         "billing_amount": s["total_amount"],
         "outstanding": round(max(0.0, balance), 2),
         "outstanding_label": f"OUTSTANDING (AS ON {date.today():%d %b %Y})".upper(),
+        "unbilled_amount": parts["unbilled_amount"],
         "total_payable": 0.0,
         "original_qty": round(s["total_qty"] + claims_qty, 3) if not s["multi_product"] else None,
         "claims_qty": claims_qty,

@@ -248,15 +248,24 @@ class LedgerTransaction {
 }
 
 class LedgerStatement {
+  /// Total owed now: unpaid bills plus [unbilledAmount]
   final double currentOutstanding;
+  /// Milk delivered but not billed yet (already in [currentOutstanding])
+  final double unbilledAmount;
   final double creditLimit;
   final List<LedgerTransaction> transactions;
 
-  LedgerStatement({required this.currentOutstanding, required this.creditLimit, required this.transactions});
+  LedgerStatement({
+    required this.currentOutstanding,
+    this.unbilledAmount = 0,
+    required this.creditLimit,
+    required this.transactions,
+  });
 
   factory LedgerStatement.fromJson(Map<String, dynamic> json) {
     return LedgerStatement(
       currentOutstanding: _num(json['current_outstanding']),
+      unbilledAmount: _num(json['unbilled_amount']),
       creditLimit: _num(json['credit_limit']),
       transactions: ((json['ledger'] as List?) ?? []).map((t) => LedgerTransaction.fromJson(t)).toList(),
     );

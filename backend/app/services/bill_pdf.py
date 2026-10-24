@@ -67,6 +67,9 @@ def _amount_rows(bill: Dict, amount_note: str = "", claim_note: str = "", hide_e
             ("ADVANCE", fmt_num(bill["advance"]) if bill["advance"] else ""),
             (f"BILLING AMOUNT({bill['period_label']})", fmt_num(bill["billing_amount"])),
         ]
+    unbilled = bill.get("unbilled_amount") or 0.0
+    if bill.get("is_statement", False) and unbilled:
+        rows.append(("INCL. DELIVERED, NOT BILLED YET", fmt_num(unbilled)))
     rows.append((bill.get("outstanding_label", "OUTSTANDING"), fmt_num(bill["outstanding"])))
     if not bill.get("is_statement", False):
         # A bill always shows where it stands today: later payments and the account balance
@@ -76,6 +79,8 @@ def _amount_rows(bill: Dict, amount_note: str = "", claim_note: str = "", hide_e
         ]
         if bill.get("excess_paid"):
             rows.append(("EXCESS PAID (KEPT AS ADVANCE)", fmt_num(bill["excess_paid"])))
+        if unbilled:
+            rows.append(("DELIVERED, NOT BILLED YET", fmt_num(unbilled)))
         current = bill.get("current_outstanding", 0.0)
         label = bill.get("current_outstanding_label", "TOTAL OUTSTANDING")
         if current < 0:

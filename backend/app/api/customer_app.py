@@ -16,6 +16,7 @@ from backend.app.services.bill_pdf import render_bills_pdf
 from backend.app.services import notifications
 from backend.app.services.attachments import save_photos
 from backend.app.services.billing_service import (bill_to_dict, build_statement, get_business_profile, main_product,
+                                                  outstanding_parts,
                                                   resolve_bill_period)
 from backend.app.services.claims_service import (
     CLAIM_REASONS, CLAIM_WINDOW_DAYS, claim_dict, claimed_so_far, create_claim, day_delivery, day_products, list_claims
@@ -85,7 +86,8 @@ def profile(customer: Customer = Depends(get_current_customer), db: Session = De
         "delivery_address": customer.delivery_address,
         "credit_limit": customer.credit_limit,
         "credit_days": customer.credit_days,
-        "current_outstanding": customer.current_outstanding,
+        # Total owed now: bills not yet paid plus milk delivered but not billed yet
+        **outstanding_parts(db, customer),
         # Rate of the customer's usual product, and their rate for every product on sale
         "milk_rate": customer_unit_price(db, customer.id, milk) if milk else None,
         "main_product": {"id": milk.id, "name": milk.product_name, "unit": milk.unit} if milk else None,
@@ -147,7 +149,7 @@ def place_order(payload: PlaceOrderSchema, customer: Customer = Depends(get_curr
     order = set_day_quantity(db, customer, deliv, items, placed_by="customer app")
     warning = None
     # Credit limit 0 means no limit has been set for this customer
-    over = (customer.current_outstanding or 0) + order.total_amount > (customer.credit_limit or 0)
+    over = outstanding_parts(db, customer)["current_outstanding"] + order.total_amount > (customer.credit_limit or 0)
     if customer.credit_limit and customer.credit_limit > 0 and over:
         warning = "Your outstanding is above your credit limit. Please clear dues soon."
     return {"status": "success", "order": _order_dict(db, order), "credit_warning": warning}
@@ -189,7 +191,7 @@ def ledger(customer: Customer = Depends(get_current_customer), db: Session = Dep
         CustomerLedger.transaction_date.asc(), CustomerLedger.id.asc()
     ).all()
     return {
-        "current_outstanding": customer.current_outstanding,
+        **outstanding_parts(db, customer),
         "credit_limit": customer.credit_limit,
         "ledger": [{"id": e.id, "date": e.transaction_date.isoformat(), "type": e.transaction_type,
                     "ref_no": e.reference_number, "narration": e.narration, "debit": e.debit_amount,
