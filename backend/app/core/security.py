@@ -89,6 +89,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.query(User).filter(User.id == user_id).first()
     if not user or not user.is_active:
         raise unauthorized
+    if user.read_only and request.method not in ("GET", "HEAD", "OPTIONS"):
+        raise HTTPException(status_code=403, detail="This is a view-only demo login. Changes are not saved.")
     return user
 
 

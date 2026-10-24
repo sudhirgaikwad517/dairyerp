@@ -33,6 +33,7 @@ class User(Base):
     phone = Column(String(20), unique=True, nullable=False)
     role = Column(String(30), default="customer") # super_admin, admin, driver, customer, sales_manager, etc.
     is_active = Column(Boolean, default=True)
+    read_only = Column(Boolean, default=False)  # sees everything its role allows but cannot change anything (demo login)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 # 3. Vehicle
