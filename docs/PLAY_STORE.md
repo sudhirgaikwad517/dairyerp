@@ -33,6 +33,10 @@ The output is `build/app/outputs/bundle/release/app-release.aab`. The build ends
 
 The app only works after login, so Google needs a working login.
 
+Created on 24 Oct 2026: customer **CUST-002 "Play Store Review (Demo)"**, mobile **9000000001**, no route. The password is not kept in git; reset it from the admin panel (Customer → Login) if it is lost, and update App access in Play Console.
+
+How it was made (to make another one):
+
 1. Admin panel → B2B Customers → Add customer:
    - Name: `Play Store Review (Demo)`
    - Mobile: a 10-digit number not used by anyone else

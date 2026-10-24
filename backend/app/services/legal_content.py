@@ -20,7 +20,7 @@ from backend.app.models.entities import LegalPage, User
 
 DEVELOPER = "Prowexa Technologies Private Limited"
 DEVELOPER_SITE = "https://www.prowexa.com"
-DEFAULT_UPDATED = datetime(2026, 10, 18)
+DEFAULT_UPDATED = datetime(2026, 10, 24)
 DELETION_DAYS = 30
 RECORD_YEARS = 8
 MAX_LENGTH = 50_000
