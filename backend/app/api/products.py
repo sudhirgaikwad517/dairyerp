@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.core.security import require_admin
 from backend.app.database import get_db
-from backend.app.models.entities import AuditLog, CustomerPricing, Order, OrderItem, Product, User
+from backend.app.models.entities import AuditLog, CustomerPricing, DeliveryClaim, Order, OrderItem, Product, User
 from backend.app.services.order_lines import UNITS, gst_split, litres_per_unit, whole_unit
 from backend.app.services.order_pricing import OPEN_ORDER_STATUSES, reprice_open_orders
 
@@ -128,7 +128,9 @@ def _clean(db: Session, payload: ProductIn, existing: Optional[Product] = None) 
     if existing and payload.unit != existing.unit and _used(db, existing.id):
         # A litre product that was really sold as packs may be renamed to packs: quantities stay the same
         to_packs = existing.unit == "L" and payload.unit in PACK_UNITS and lpu
-        if not to_packs:
+        # Packs with their litres known may become litres: quantities and rates are converted
+        to_litres = existing.unit in PACK_UNITS and payload.unit == "L" and existing.litres_per_unit
+        if not (to_packs or to_litres):
             raise HTTPException(status_code=400, detail=(
                 f"{existing.product_name} has been ordered before, so its unit ({existing.unit}) cannot change. "
                 f"Add a new product with the new unit and switch this one off."))
@@ -214,6 +216,21 @@ def _refresh_litres(db: Session, p: Product) -> None:
         order.total_litres = round(litres, 3)
 
 
+def _packs_to_litres(db: Session, p: Product, per_pack: float) -> None:
+    """A pack product now sold per litre: its orders, customer rates and claims in litres. Amounts stay the same."""
+    for i in db.query(OrderItem).filter(OrderItem.product_id == p.id).all():
+        i.ordered_quantity = round(i.ordered_quantity * per_pack, 3)
+        if i.delivered_quantity is not None:
+            i.delivered_quantity = round(i.delivered_quantity * per_pack, 3)
+        i.unit_price = round(i.unit_price / per_pack, 4)
+    for cp in db.query(CustomerPricing).filter(CustomerPricing.product_id == p.id).all():
+        cp.custom_price = round(cp.custom_price / per_pack, 2)
+    for c in db.query(DeliveryClaim).filter(DeliveryClaim.product_id == p.id).all():
+        c.claimed_qty = round((c.claimed_qty or 0.0) * per_pack, 3)
+        c.approved_qty = round((c.approved_qty or 0.0) * per_pack, 3)
+        c.rate = round((c.rate or 0.0) / per_pack, 4)
+
+
 def _update(db: Session, p: Product, payload: ProductIn, admin: User) -> List[str]:
     """Save changes to one product. Returns notes for the admin; [] with nothing changed."""
     data = _clean(db, payload, p)
@@ -227,10 +244,14 @@ def _update(db: Session, p: Product, payload: ProductIn, admin: User) -> List[st
         setattr(p, k, v)
     db.flush()
     notes = ["Saved"]
+    to_litres = before["unit"] in PACK_UNITS and p.unit == "L" and before["litres_per_unit"]
+    if to_litres:
+        _packs_to_litres(db, p, before["litres_per_unit"])
+        notes.append(f"{p.product_name}: orders, customer rates and claims changed to litres")
     if before["unit"] != p.unit or before["litres_per_unit"] != p.litres_per_unit:
         _refresh_litres(db, p)
     # Orders not dispatched yet take the new rate / GST / cost; delivered ones keep theirs
-    if before["standard_b2b_price"] != p.standard_b2b_price:
+    if before["standard_b2b_price"] != p.standard_b2b_price and not to_litres:
         n = reprice_open_orders(db, p)
         if n:
             notes.append(f"{n} upcoming order(s) of customers on the standard rate updated")

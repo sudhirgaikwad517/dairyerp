@@ -1674,7 +1674,26 @@ function updateSizeHints() {
     : 'One size? Leave Size empty. Selling 500 ML and 1 L packs of this product? Add a row for each size.';
   document.getElementById('prod-unit-hint').innerText = packs
     ? `Rate is per ${UNIT_LABEL[unit].toLowerCase()}. Fill "Litres in 1" (0.5 for 500 ML) so milk totals are in litres.`
-    : '';
+    : packsToLitres() ? 'Rate is per litre. Old orders, customer rates and claims change to litres; amounts stay the same.' : '';
+}
+
+// Editing a pack product (pouch etc.) that is being changed to litres
+function packsToLitres() {
+  const f = productFormGroup ? productFormGroup.first : null;
+  return !!f && PACK_UNITS.includes(f.unit) && document.getElementById('prod-unit').value === 'L';
+}
+
+// Pack rates become litre rates (28.75 a 500 ML pouch = 57.50 a litre), and back again
+function convertSizeRates() {
+  if (!productFormGroup || !PACK_UNITS.includes(productFormGroup.first.unit)) return;
+  const litres = packsToLitres();
+  document.querySelectorAll('#prod-sizes tr').forEach(tr => {
+    const p = allProducts.find(x => x.id === parseInt(tr.dataset.id));
+    if (!p || !p.litres_per_unit) return;
+    const per = litres ? p.litres_per_unit : 1;
+    tr.querySelector('.ps-price').value = +(p.standard_b2b_price / per).toFixed(2);
+    tr.querySelector('.ps-cost').value = p.cost_price ? +(p.cost_price / per).toFixed(2) : '';
+  });
 }
 
 window.openProductModal = function(groupIndex, addSize = false) {
@@ -1695,14 +1714,18 @@ window.openProductModal = function(groupIndex, addSize = false) {
   set('prod-hsn', f?.hsn_code);
   set('prod-sort', f ? f.sort_order : (productGroups.length + 1));
   set('prod-desc', f?.description);
-  // A product already ordered keeps its unit (old bills use it); litres may only be renamed to packs
+  // A product already ordered keeps its unit (old bills use it); litres may only be renamed to packs,
+  // and packs with their litres known may become litres (quantities and rates are converted)
   const ordered = g && g.items.some(p => p.times_ordered);
+  const toLitres = !!ordered && PACK_UNITS.includes(f.unit) && g.items.every(p => p.litres_per_unit);
   const unitSel = document.getElementById('prod-unit');
   [...unitSel.options].forEach(o => {
-    o.disabled = !!ordered && o.value !== f.unit && !(f.unit === 'L' && PACK_UNITS.includes(o.value));
+    o.disabled = !!ordered && o.value !== f.unit && !(f.unit === 'L' && PACK_UNITS.includes(o.value))
+      && !(toLitres && o.value === 'L');
   });
-  document.getElementById('prod-unit-note').innerText = ordered
-    ? (f.unit === 'L' ? 'Already ordered: can only change to pouch / bottle / packet.' : 'Already ordered, unit is fixed.') : '';
+  document.getElementById('prod-unit-note').innerText = !ordered ? ''
+    : f.unit === 'L' ? 'Already ordered: can only change to pouch / bottle / packet.'
+    : toLitres ? 'Already ordered: can only change to Litre.' : 'Already ordered, unit is fixed.';
   document.getElementById('prod-group-names').innerHTML = productGroups.filter(x => x !== g)
     .map(x => `<option value="${esc(x.name)}">`).join('');
   document.getElementById('prod-sizes').innerHTML = '';
@@ -1729,7 +1752,7 @@ function setupProducts() {
   if (!nav) return;
   nav.addEventListener('click', loadProducts);
   document.getElementById('prod-show-off').addEventListener('change', renderProducts);
-  document.getElementById('prod-unit').addEventListener('change', updateSizeHints);
+  document.getElementById('prod-unit').addEventListener('change', () => { convertSizeRates(); updateSizeHints(); });
   loadProducts();
   document.getElementById('form-product').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1751,7 +1774,11 @@ function setupProducts() {
     };
     if (packs && variants.some(v => !v.litres_per_unit) && !confirm(
       'Some sizes have no "Litres in 1" filled in, so their milk is not counted in litre totals. Save anyway?')) return;
-    const changed = variants.filter(v => v.id).map(v => ({ v, old: allProducts.find(p => p.id === v.id) }))
+    const toLitres = packsToLitres();
+    if (toLitres && !confirm(`Sell ${data.product_name} per litre?
+` +
+      'Old orders, customer rates and claims change to litres (2 pouches of 500 ML = 1 litre). Amounts stay the same. Bills already made do not change.')) return;
+    const changed = toLitres ? [] : variants.filter(v => v.id).map(v => ({ v, old: allProducts.find(p => p.id === v.id) }))
       .filter(x => x.old && x.old.standard_b2b_price !== x.v.standard_b2b_price);
     if (changed.length && !confirm(changed.map(x =>
       `Change the rate of ${x.old.product_name} from ${inr(x.old.standard_b2b_price)} to ${inr(x.v.standard_b2b_price)}?`).join('\n') +
