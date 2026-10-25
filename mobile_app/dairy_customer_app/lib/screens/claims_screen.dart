@@ -237,7 +237,7 @@ class _NewClaimScreenState extends State<NewClaimScreen> {
     } else if (quantity <= 0) {
       problem = 'Enter how much was affected';
     } else if (wholeUnit(_unit) && quantity != quantity.roundToDouble()) {
-      problem = 'Enter a whole number of $_unit';
+      problem = 'Enter a whole number of ${unitName(_unit)}';
     } else if (quantity > _available + 0.0001) {
       problem = 'You can report at most ${qtyUnit(_available, _unit)} for this date';
     } else if (_descController.text.trim().isEmpty) {
@@ -353,8 +353,8 @@ class _NewClaimScreenState extends State<NewClaimScreen> {
                           inputFormatters: [FilteringTextInputFormatter.allow(wholeUnit(_unit) ? RegExp(r'^\d*') : RegExp(r'^\d*\.?\d{0,2}'))],
                           decoration: InputDecoration(
                             labelText: 'How much was affected?',
-                            suffixText: _unit,
-                            helperText: _rate <= 0 ? null : 'Rate ${rupees(_rate)}/$_unit',
+                            suffixText: unitName(_unit),
+                            helperText: _rate <= 0 ? null : 'Rate ${rupees(_rate)}/${unitName(_unit)}',
                             border: const OutlineInputBorder(),
                           ),
                         ),

@@ -325,7 +325,7 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
       child: Row(
         children: [
           cell('${s.customersOrdered}/${s.activeCustomers}', 'Customers'),
-          cell('${qty(s.totalLitres)} L', 'Milk'),
+          cell('${qty(s.totalLitres)} Liter', 'Milk'),
           cell(rupees(s.totalAmount), 'Amount'),
         ],
       ),
@@ -421,7 +421,7 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                           o.isCancelled
                               ? 'Cancelled'
                               : '$products product${products == 1 ? '' : 's'}'
-                                    '${o.totalLitres > 0 ? ' • ${qty(o.totalLitres)} L' : ''}'
+                                    '${o.totalLitres > 0 ? ' • ${qty(o.totalLitres)} Liter' : ''}'
                                     '${o.routeName != null ? ' • ${o.routeName}' : ''}',
                           style: const TextStyle(fontSize: 12.5, color: AppTheme.textMuted),
                         ),
@@ -484,7 +484,7 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
                   'TOTAL',
                   style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1, color: AppTheme.navy),
                 ),
-                Text('$count orders • ${qty(litres)} L milk', style: const TextStyle(color: AppTheme.textMain)),
+                Text('$count orders • ${qty(litres)} Liter milk', style: const TextStyle(color: AppTheme.textMain)),
               ],
             ),
           ),

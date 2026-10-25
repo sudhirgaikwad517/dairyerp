@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 
 from backend.app.core.security import require_admin
 from backend.app.database import get_db
-from backend.app.models.entities import AuditLog, CustomerPricing, DeliveryClaim, Order, OrderItem, Product, User
+from backend.app.models.entities import (AuditLog, CustomerPricing, DeliveryClaim, Order, OrderItem, Product,
+                                         ProductionBatch, User)
 from backend.app.services.order_lines import UNITS, gst_split, litres_per_unit, whole_unit
 from backend.app.services.order_pricing import OPEN_ORDER_STATUSES, reprice_open_orders
 
@@ -316,6 +317,62 @@ def save_group(payload: GroupIn, admin: User = Depends(require_admin), db: Sessi
     if notes:
         message += " " + ". ".join(notes) + "."
     return {"status": "success", "message": message}
+
+
+class MergeIn(BaseModel):
+    product_name: str
+
+
+@router.post("/group/merge")
+def merge_group(payload: MergeIn, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """
+    A product sold per litre in sizes (500 ML, 1 L) becomes one product with no sizes. Orders, customer
+    rates and claims of every size move to the 1 L size (its rate stays); the other sizes are switched off.
+    Amounts of orders do not change. Bills already made keep their lines.
+    """
+    name = re.sub(r"\s+", " ", (payload.product_name or "").strip())
+    sizes = db.query(Product).filter(func.lower(Product.group_name) == name.lower()).all()
+    if len(sizes) < 2:
+        raise HTTPException(status_code=400, detail=f"{name} has no sizes to make into one product")
+    if any(p.unit != "L" or (p.litres_per_unit not in (None, 1.0)) for p in sizes):
+        raise HTTPException(status_code=400, detail="Change Sold per to Litre first, then make it one product")
+    keep = sorted(sizes, key=lambda p: (not p.is_active, (p.variant_name or "").replace(" ", "").upper() != "1L", p.id))[0]
+    others = [p for p in sizes if p.id != keep.id]
+    other_ids = [p.id for p in others]
+    for item in db.query(OrderItem).filter(OrderItem.product_id.in_(other_ids)).all():
+        into = db.query(OrderItem).filter(OrderItem.order_id == item.order_id, OrderItem.product_id == keep.id).first()
+        if not into:
+            item.product_id = keep.id
+            continue
+        qty = (into.ordered_quantity or 0.0) + (item.ordered_quantity or 0.0)
+        into.total_amount = round((into.total_amount or 0.0) + (item.total_amount or 0.0), 2)
+        into.tax_amount = round((into.tax_amount or 0.0) + (item.tax_amount or 0.0), 2)
+        into.unit_price = round(into.total_amount / qty, 4) if qty else into.unit_price
+        into.ordered_quantity = round(qty, 3)
+        if into.delivered_quantity is not None or item.delivered_quantity is not None:
+            into.delivered_quantity = round((into.delivered_quantity or 0.0) + (item.delivered_quantity or 0.0), 3)
+        db.delete(item)
+    for cp in db.query(CustomerPricing).filter(CustomerPricing.product_id.in_(other_ids)).all():
+        has_own = db.query(CustomerPricing).filter(CustomerPricing.customer_id == cp.customer_id,
+                                                   CustomerPricing.product_id == keep.id).first()
+        if has_own:
+            db.delete(cp)
+        else:
+            cp.product_id = keep.id
+    db.query(DeliveryClaim).filter(DeliveryClaim.product_id.in_(other_ids)).update(
+        {DeliveryClaim.product_id: keep.id}, synchronize_session=False)
+    db.query(ProductionBatch).filter(ProductionBatch.output_product_id.in_(other_ids)).update(
+        {ProductionBatch.output_product_id: keep.id}, synchronize_session=False)
+    for p in others:
+        p.is_active = False
+        p.group_name = None
+        p.product_name = f"{p.product_name} (old size)"[:100]
+    keep.group_name, keep.variant_name, keep.product_name, keep.is_active = None, None, name, True
+    db.add(AuditLog(user_id=admin.id, username=admin.username, action="PRODUCT_MERGE", entity_name="products",
+                    entity_id=str(keep.id), new_values=f"{name}: sizes {', '.join(p.sku for p in others)} made one with {keep.sku}"))
+    db.commit()
+    return {"status": "success", "message": f"{name} is now one product at {keep.standard_b2b_price:g} a litre. "
+                                            f"Orders of the other sizes were moved to it."}
 
 
 @router.put("/{product_id}")

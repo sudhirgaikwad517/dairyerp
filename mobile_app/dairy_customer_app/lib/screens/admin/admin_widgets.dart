@@ -335,7 +335,7 @@ class ProductBreakdown extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Text(
-            litres > 0 ? '${qty(litres)} L' : (sizes.length == 1 ? qtyUnit(sizes.first.quantity, sizes.first.unit) : ''),
+            litres > 0 ? '${qty(litres)} Liter' : (sizes.length == 1 ? qtyUnit(sizes.first.quantity, sizes.first.unit) : ''),
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.navy),
           ),
         ],
@@ -386,7 +386,7 @@ Future<void> showProductsSheet(BuildContext context, List<DayProductTotal> produ
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text('$title • ${all.length}${litres > 0 ? ' • ${qty(litres)} L' : ''}',
+              child: Text('$title • ${all.length}${litres > 0 ? ' • ${qty(litres)} Liter' : ''}',
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.navy)),
             ),
             Flexible(

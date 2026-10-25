@@ -154,7 +154,7 @@ class _AdminDeliveryScreenState extends State<AdminDeliveryScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text('Milk ${qty(deliveredL)} of ${qty(loaded)} L delivered • ${rupees(amount)}',
+                    Text('Milk ${qty(deliveredL)} of ${qty(loaded)} Liter delivered • ${rupees(amount)}',
                         style: const TextStyle(fontSize: 12.5, color: AppTheme.textMuted)),
                   ],
                 ),

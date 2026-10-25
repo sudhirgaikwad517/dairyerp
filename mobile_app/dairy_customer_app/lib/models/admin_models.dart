@@ -223,7 +223,7 @@ class AdminBill {
         paymentStatus = j['payment_status'] as String? ?? 'pending',
         currentOutstanding = _d(j['current_outstanding']),
         invoiceDate = j['invoice_date'] as String? ?? '',
-        what = j['what'] as String? ?? '${_d(j['total_qty'])} L',
+        what = j['what'] as String? ?? '${_d(j['total_qty'])} Liter',
         multiProduct = j['multi_product'] as bool? ?? false;
 
   String get typeLabel => const {'monthly': 'Monthly', 'fortnightly': '15 Days', 'daily': 'Daily', 'custom': 'Custom'}[billType] ?? billType;

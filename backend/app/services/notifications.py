@@ -27,7 +27,7 @@ def money(amount: float) -> str:
 
 
 def litres(qty: float) -> str:
-    return f"{round(qty or 0.0, 2):g} L"
+    return f"{round(qty or 0.0, 2):g} Liter"
 
 
 def day_text(d: date) -> str:

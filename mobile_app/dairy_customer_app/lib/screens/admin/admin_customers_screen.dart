@@ -127,7 +127,7 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> {
                 children: [
                   Text(c.name + (c.isActive ? '' : ' (inactive)'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
-                  Text('${c.code} • ${c.routeName}${c.milkRate != null ? ' • ${rupees(c.milkRate!)}${c.rateProduct != null ? ' ${c.rateProduct}' : '/L'}' : ''}',
+                  Text('${c.code} • ${c.routeName}${c.milkRate != null ? ' • ${rupees(c.milkRate!)}${c.rateProduct != null ? ' ${c.rateProduct}' : '/Liter'}' : ''}',
                       style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
                   const SizedBox(height: 4),
                   Text(

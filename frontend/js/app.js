@@ -1731,8 +1731,25 @@ window.openProductModal = function(groupIndex, addSize = false) {
   document.getElementById('prod-sizes').innerHTML = '';
   (g ? g.items : [{}]).forEach(v => addSizeRow(v));
   if (addSize) addSizeRow();
+  document.getElementById('prod-merge').classList.toggle('d-none', !(g && g.items.length > 1 && f.unit === 'L'));
   document.getElementById('prod-result').innerHTML = '';
   new bootstrap.Modal(document.getElementById('modalProduct')).show();
+};
+
+window.mergeProductSizes = async function() {
+  const g = productFormGroup;
+  if (!g || !confirm(`Make ${g.name} one product with no sizes?
+` +
+    'Orders, customer rates and claims of every size move to the 1 L size and its rate. Order amounts stay the same. ' +
+    'The other sizes are switched off. Bills already made do not change.')) return;
+  try {
+    const res = await DairyAPI.mergeProductSizes(g.name);
+    bootstrap.Modal.getInstance(document.getElementById('modalProduct')).hide();
+    document.getElementById('products-result').innerHTML = `<span class="text-success">${esc(res.message)}</span>`;
+    await loadProducts();
+  } catch (err) {
+    document.getElementById('prod-result').innerHTML = `<span class="text-danger">${esc(err.message)}</span>`;
+  }
 };
 
 window.toggleProduct = async function(id) {

@@ -12,7 +12,7 @@
   <!-- Bootstrap Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <!-- Custom Design System -->
-  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261025a">
+  <link rel="stylesheet" href="/frontend/css/styles.css?v=20261025b">
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 </head>
@@ -1307,6 +1307,10 @@
               <small class="text-dim d-block mt-1" id="prod-sizes-note"></small>
               <small class="text-dim d-block" id="prod-unit-hint"></small>
               <small class="text-dim d-block">Rate is for customers without their own rate. Cost price is for the profit report only.</small>
+              <div id="prod-merge" class="d-none mt-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="mergeProductSizes()"><i class="bi bi-intersect me-1"></i>Make one product (no sizes)</button>
+                <small class="text-dim d-block">Sold per litre? Customers then order litres of one product; the pouches packed are up to you.</small>
+              </div>
             </div>
 
             <div class="col-md-4">
@@ -2022,7 +2026,7 @@
 <script>window.DAIRY_APP = 'admin';</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <!-- Central API & App JS -->
-<script src="/frontend/js/api.js?v=20261025a"></script>
-<script src="/frontend/js/app.js?v=20261025a"></script>
+<script src="/frontend/js/api.js?v=20261025b"></script>
+<script src="/frontend/js/app.js?v=20261025b"></script>
 </body>
 </html>

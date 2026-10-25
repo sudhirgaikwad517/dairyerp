@@ -210,7 +210,7 @@ String daySummaryText(DayPlan d) {
     final i = d.items.first;
     return '${qtyUnit(i.quantity, i.unit)} • ${i.productName}';
   }
-  return '${d.items.length} products${d.totalLitres > 0 ? ' • ${qty(d.totalLitres)} L milk' : ''}';
+  return '${d.items.length} products${d.totalLitres > 0 ? ' • ${qty(d.totalLitres)} Liter milk' : ''}';
 }
 
 List<OrderLineView> dayLines(DayPlan d) => d.items
@@ -240,7 +240,7 @@ Future<DayPlan?> showDayOrderSheet(BuildContext context, DayPlan day, {List<Prod
       title: when,
       subtitle: [
         '${day.items.length} product${day.items.length == 1 ? '' : 's'}',
-        if (day.totalLitres > 0) '${qty(day.totalLitres)} L milk',
+        if (day.totalLitres > 0) '${qty(day.totalLitres)} Liter milk',
         'rates include GST',
       ].join(' • '),
       statusText: label,
@@ -456,7 +456,7 @@ class _DayEditorState extends State<_DayEditor> {
     if (!cancel) {
       final bad = wanted.where((p) => p.whole && _value(p) != _value(p).roundToDouble()).toList();
       if (bad.isNotEmpty) {
-        setState(() => _error = '${bad.first.name} is sold per ${bad.first.unit}; enter a whole number');
+        setState(() => _error = '${bad.first.name} is sold per ${unitName(bad.first.unit)}; enter a whole number');
         return;
       }
       if (wanted.isEmpty) {
@@ -654,7 +654,7 @@ class _DayEditorState extends State<_DayEditor> {
                     p.variantName.isNotEmpty ? p.variantName : p.name,
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
-                Text('${rupees(_rate(p))} / ${p.unit}', style: const TextStyle(fontSize: 12.5, color: AppTheme.textMuted)),
+                Text('${rupees(_rate(p))} / ${unitName(p.unit)}', style: const TextStyle(fontSize: 12.5, color: AppTheme.textMuted)),
                 if (v > 0)
                   Text(
                     rupees(v * _rate(p)),
@@ -676,7 +676,7 @@ class _DayEditorState extends State<_DayEditor> {
                 hintText: '0',
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-                helperText: p.unit,
+                helperText: unitName(p.unit),
                 helperStyle: const TextStyle(fontSize: 10.5),
                 border: const OutlineInputBorder(),
               ),

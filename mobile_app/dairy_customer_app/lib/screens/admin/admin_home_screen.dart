@@ -193,7 +193,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('${qty(t.totalLitres)} L',
+                  Text('${qty(t.totalLitres)} Liter',
                       style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.w800, height: 1)),
                   const SizedBox(width: 10),
                   Flexible(
@@ -325,7 +325,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  stat('${qty(t.totalLitres)} L', 'Milk'),
+                  stat('${qty(t.totalLitres)} Liter', 'Milk'),
                   divider(),
                   stat('${t.customersOrdered}/${t.activeCustomers}', 'Customers'),
                   divider(),

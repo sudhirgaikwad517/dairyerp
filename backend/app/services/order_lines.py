@@ -47,7 +47,7 @@ def whole_unit(unit: Optional[str]) -> bool:
 
 def qty_text(qty: float, unit: Optional[str]) -> str:
     q = round(qty or 0.0, 2)
-    return f"{q:g} {unit or ''}".strip()
+    return f"{q:g} {'Liter' if unit == 'L' else (unit or '')}".strip()
 
 
 def describe(pairs: Iterable) -> str:

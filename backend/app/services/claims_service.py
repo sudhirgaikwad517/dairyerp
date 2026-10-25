@@ -155,7 +155,7 @@ def approve_claim(db: Session, claim: DeliveryClaim, approved_qty: float, note: 
     if approved_qty is None or approved_qty <= 0:
         raise HTTPException(status_code=400, detail="Approved quantity must be more than 0 (or reject the claim)")
     if approved_qty > claim.claimed_qty:
-        raise HTTPException(status_code=400, detail=f"Cannot approve more than the {claim.claimed_qty:g} L claimed")
+        raise HTTPException(status_code=400, detail=f"Cannot approve more than the {claim.claimed_qty:g} Liter claimed")
     info = day_delivery(db, claim.customer_id, claim.issue_date, claim.product_id)
     if whole_unit(info["unit"]) and abs(approved_qty - round(approved_qty)) > 1e-9:
         raise HTTPException(status_code=400, detail=f"{info['product_name']} is counted per {info['unit']}; approve a whole number")
@@ -184,7 +184,7 @@ def approve_claim(db: Session, claim: DeliveryClaim, approved_qty: float, note: 
             customer_id=customer.id, transaction_date=today, transaction_type="credit_note",
             reference_number=claim.claim_number, debit_amount=0.0, credit_amount=claim.credit_amount,
             running_balance=0.0,
-            narration=f"Claim credit {claim.approved_qty:g} L ({reason}) on {claim.issue_date:%d %b %Y} - refunded separately"
+            narration=f"Claim credit {claim.approved_qty:g} Liter ({reason}) on {claim.issue_date:%d %b %Y} - refunded separately"
         ))
         db.add(CustomerLedger(
             customer_id=customer.id, transaction_date=today, transaction_type="refund",
@@ -209,7 +209,7 @@ def approve_claim(db: Session, claim: DeliveryClaim, approved_qty: float, note: 
             customer_id=customer.id, transaction_date=date.today(), transaction_type="credit_note",
             reference_number=claim.claim_number, debit_amount=0.0, credit_amount=claim.credit_amount,
             running_balance=0.0,
-            narration=f"Credit for {claim.approved_qty:g} L ({CLAIM_REASONS[claim.reason]}) on {claim.issue_date:%d %b %Y} - billed in {bill.invoice_number}"
+            narration=f"Credit for {claim.approved_qty:g} Liter ({CLAIM_REASONS[claim.reason]}) on {claim.issue_date:%d %b %Y} - billed in {bill.invoice_number}"
         ))
         claim.settlement = "credit_note"
         claim.invoice_id = bill.id
@@ -240,7 +240,7 @@ def reject_claim(db: Session, claim: DeliveryClaim, note: Optional[str], admin: 
 def _describe(claim: DeliveryClaim) -> str:
     text = f"{claim.status}"
     if claim.status == "approved":
-        text += f" {claim.approved_qty:g} L = Rs {claim.credit_amount:g}, settlement {claim.settlement or 'next bill'}"
+        text += f" {claim.approved_qty:g} Liter = Rs {claim.credit_amount:g}, settlement {claim.settlement or 'next bill'}"
         if claim.invoice_id:
             text += f" (bill id {claim.invoice_id})"
         if claim.refund_method:
@@ -326,7 +326,7 @@ def reopen_claim(db: Session, claim: DeliveryClaim, reason: Optional[str], admin
             ).first()
             if entry:
                 entry.debit_amount = round((entry.debit_amount or 0.0) + amount, 2)
-                entry.narration = f"{entry.narration} (claim {claim.claim_number} undone: +{qty:g} L)"
+                entry.narration = f"{entry.narration} (claim {claim.claim_number} undone: +{qty:g} Liter)"
             refresh_bill(db, bill)
             ledger_changed = True
         claim.settlement = None

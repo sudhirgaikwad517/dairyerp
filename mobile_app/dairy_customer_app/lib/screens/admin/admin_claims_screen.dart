@@ -211,7 +211,7 @@ class _AdminClaimDetailScreenState extends State<AdminClaimDetailScreen> {
     final litres = double.tryParse(_litres.text.replaceAll(',', '').trim()) ?? 0;
     if (litres <= 0) return _snack('Enter the litres to approve, or reject the claim.');
     if (litres > c.maxApprovable + 0.001) return _snack('At most ${qtyUnit(c.maxApprovable, c.unit)} can be approved.');
-    if (wholeUnit(c.unit) && litres != litres.roundToDouble()) return _snack('${c.productName} is counted per ${c.unit}; enter a whole number.');
+    if (wholeUnit(c.unit) && litres != litres.roundToDouble()) return _snack('${c.productName} is counted per ${unitName(c.unit)}; enter a whole number.');
     if (_mode == 'refund' && _refundMethod == null) return _snack('Choose how the refund was paid.');
     final amount = rupees(litres * c.rate);
     final body = _mode == 'refund'
@@ -374,7 +374,7 @@ class _AdminClaimDetailScreenState extends State<AdminClaimDetailScreen> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
                 labelText: 'Approve litres (max ${qty(c.maxApprovable)})',
-                helperText: 'Rate ${rupees(c.rate)}/L • credit ${rupees(litres * c.rate)}',
+                helperText: 'Rate ${rupees(c.rate)}/${unitName(c.unit)} • credit ${rupees(litres * c.rate)}',
               ),
               onChanged: (_) => setState(() {}),
             ),

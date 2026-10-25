@@ -157,7 +157,7 @@ def list_customers(db: Session = Depends(get_db)):
             "milk_rate": rate,
             # Own rate per product id (products not listed: standard rate)
             "own_rates": own_rates.get(c.id, {}),
-            "rate_product": f"{milk.product_name} (/{milk.unit})" if milk else None,
+            "rate_product": f"{milk.product_name} (/{'Liter' if milk.unit == 'L' else milk.unit})" if milk else None,
             "transport_allocation_method": c.transport_allocation_method,
             "negotiated_transport_rate_per_litre": c.negotiated_transport_rate_per_litre,
             "is_active": c.is_active,

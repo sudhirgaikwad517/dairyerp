@@ -12,8 +12,11 @@ String rupees(double value) {
 /// 186 or 186.5
 String qty(double value) => _plain.format(value);
 
-/// 10 L, 1.5 kg, 2 packet
-String qtyUnit(double value, String unit) => '${qty(value)} $unit'.trim();
+/// How a unit is shown: Liter for L, the rest as they are (kg, packet)
+String unitName(String unit) => unit == 'L' ? 'Liter' : unit;
+
+/// 10 Liter, 1.5 kg, 2 packet
+String qtyUnit(double value, String unit) => '${qty(value)} ${unitName(unit)}'.trim();
 
 /// Units counted in whole numbers (no half packets)
 bool wholeUnit(String unit) => const {'pcs', 'packet', 'box', 'pouch', 'bottle'}.contains(unit);

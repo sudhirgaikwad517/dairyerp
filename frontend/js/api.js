@@ -291,6 +291,10 @@ const DairyAPI = {
     return postJSON('/products/group', data, 'PUT');
   },
 
+  mergeProductSizes(productName) {
+    return postJSON('/products/group/merge', { product_name: productName });
+  },
+
   setProductActive(id, isActive) {
     return postJSON(`/products/${id}/active`, { is_active: isActive }, 'PUT');
   },
